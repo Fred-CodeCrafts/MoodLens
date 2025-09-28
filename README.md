@@ -23,6 +23,7 @@ Jetpack Compose Android project using **Material 3**, custom colors, and typogra
 ```bash
 git clone https://github.com/yourusername/moodlens.git
 cd moodlens
+```
 2. Open in Android Studio
 Open the cloned folder as a project.
 
@@ -30,9 +31,9 @@ Let Gradle sync complete.
 
 Gradle version is already set in gradle-wrapper.properties:
 
-ruby
-Copy code
+```
 distributionUrl=https\://services.gradle.org/distributions/gradle-8.13-all.zip
+```
 ⚠️ Do not change this; all team members should use the same Gradle version.
 
 3. Build & Run
