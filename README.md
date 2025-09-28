@@ -24,7 +24,7 @@ Jetpack Compose Android project using **Material 3**, custom colors, and typogra
 git clone https://github.com/yourusername/moodlens.git
 cd moodlens
 ```
-2. Open in Android Studio
+## 2. Open in Android Studio
 Open the cloned folder as a project.
 
 Let Gradle sync complete.
@@ -34,14 +34,14 @@ Gradle version is already set in gradle-wrapper.properties:
 ```
 distributionUrl=https\://services.gradle.org/distributions/gradle-8.13-all.zip
 ```
-⚠️ Do not change this; all team members should use the same Gradle version.
+> ⚠️ Do not change this; all team members should use the same Gradle version.
 
-3. Build & Run
+## 3. Build & Run
 Select a device or emulator.
 
 Click Run ▶️ in Android Studio.
 
 If the build fails, do not upgrade Gradle—use the wrapper version.
 
-4. Preview UI
+## 4. Preview UI
 Use @Preview in Compose files (ShowcasePreview, GreetingPreview) to preview components without running the app.
