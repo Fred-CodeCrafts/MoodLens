@@ -11,7 +11,7 @@ Jetpack Compose Android project using **Material 3**, custom colors, and typogra
 - **Android Studio Flamingo 2022.2.1** (or compatible stable version)  
 - **Gradle 8.13** (project is locked to this version)  
 - **Kotlin 1.9+**  
-- Minimum SDK 24+  
+- Minimum SDK 26+  
 - Jetpack Compose enabled  
 
 > ⚠️ **Do NOT update Android Studio or Gradle mid-project.** Stick to the versions above to avoid build conflicts.
