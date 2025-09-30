@@ -6,12 +6,15 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.fredcodecrafts.moodlens.ui.theme.MoodLensTheme
-
+import com.fredcodecrafts.moodlens.components.InputField
+import com.fredcodecrafts.moodlens.components.TextAreaField
+import com.fredcodecrafts.moodlens.ui.theme.MainBackground
+import androidx.compose.ui.graphics.Color
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -28,6 +31,9 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun ShowcaseScreen(modifier: Modifier = Modifier) {
+    var name by remember { mutableStateOf("") }
+    var journalEntry by remember { mutableStateOf("") }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -35,35 +41,44 @@ fun ShowcaseScreen(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            text = "Hello Android!",
+            text = "Reflection Companion",
             style = MaterialTheme.typography.headlineMedium
         )
 
-        // Elevated Material 3 Button
+        // Single-line input (for name or short answers)
+        InputField(
+            value = name,
+            onValueChange = { name = it },
+            label = "Name",
+            placeholder = "Enter your name"
+        )
+
+        // Default, auto-fitting text
+        TextAreaField(
+            text = "A short note.",
+            placeholder = "No text yet"
+        )
+
+// Will stretch but stay within min/max width
+        TextAreaField(
+            text = "This is a much longer reflection entry that will expand the height " +
+                    "naturally as needed. The width will be constrained between 120dp and 400dp."
+        )
+
+
+
+        // Example Button using entered text
         Button(
-            onClick = { /*TODO: Action*/ },
+            onClick = {
+                // TODO: Save or submit entry
+            },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Primary Button")
-        }
-
-        // Outlined Button
-        OutlinedButton(
-            onClick = { /*TODO: Action*/ },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Outlined Button")
-        }
-
-        // Text Button
-        TextButton(
-            onClick = { /*TODO: Action*/ },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Text Button")
+            Text("Save Reflection")
         }
     }
 }
+
 
 @Preview(showBackground = true)
 @Composable
