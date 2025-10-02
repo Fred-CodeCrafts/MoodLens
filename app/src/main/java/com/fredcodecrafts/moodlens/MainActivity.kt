@@ -15,14 +15,34 @@ import com.fredcodecrafts.moodlens.components.InputField
 import com.fredcodecrafts.moodlens.components.TextAreaField
 import com.fredcodecrafts.moodlens.ui.theme.MainBackground
 import androidx.compose.ui.graphics.Color
+// IMPORT NOTIFICATION:
+import com.fredcodecrafts.moodlens.utils.GlobalNotificationHandler
+import com.fredcodecrafts.moodlens.utils.rememberNotificationState
+import com.fredcodecrafts.moodlens.utils.NotificationState
+// TAMBAHKAN INI UNTUK FUNCTION EXTENSION:
+import com.fredcodecrafts.moodlens.utils.showReflectionSaved
+import com.fredcodecrafts.moodlens.utils.showInfo
+import com.fredcodecrafts.moodlens.utils.showError
+import com.fredcodecrafts.moodlens.utils.showWarning
+import com.fredcodecrafts.moodlens.utils.showJournalEntrySaved
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
+            val notificationState = rememberNotificationState()
+
             MoodLensTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    ShowcaseScreen(Modifier.padding(innerPadding))
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                        ShowcaseScreen(
+                            modifier = Modifier.padding(innerPadding),
+                            notificationState = notificationState
+                        )
+                    }
+
+                    GlobalNotificationHandler(state = notificationState)
                 }
             }
         }
@@ -30,7 +50,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun ShowcaseScreen(modifier: Modifier = Modifier) {
+fun ShowcaseScreen(
+    modifier: Modifier = Modifier,
+    notificationState: NotificationState? = null
+) {
     var name by remember { mutableStateOf("") }
     var journalEntry by remember { mutableStateOf("") }
 
@@ -45,7 +68,6 @@ fun ShowcaseScreen(modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.headlineMedium
         )
 
-        // Single-line input (for name or short answers)
         InputField(
             value = name,
             onValueChange = { name = it },
@@ -53,24 +75,61 @@ fun ShowcaseScreen(modifier: Modifier = Modifier) {
             placeholder = "Enter your name"
         )
 
-        // Default, auto-fitting text
         TextAreaField(
             text = "A short note.",
             placeholder = "No text yet"
         )
 
-// Will stretch but stay within min/max width
         TextAreaField(
             text = "This is a much longer reflection entry that will expand the height " +
                     "naturally as needed. The width will be constrained between 120dp and 400dp."
         )
 
+        // Tombol test notification
+        Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Button(
+                onClick = {
+                    notificationState?.showReflectionSaved()
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Test Success Notification")
+            }
 
+            Button(
+                onClick = {
+                    notificationState?.showInfo("This is an info notification")
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Test Info Notification")
+            }
 
-        // Example Button using entered text
+            Button(
+                onClick = {
+                    notificationState?.showError("This is an error notification")
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Test Error Notification")
+            }
+
+            Button(
+                onClick = {
+                    notificationState?.showWarning("This is a warning notification")
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Test Warning Notification")
+            }
+        }
+
         Button(
             onClick = {
-                // TODO: Save or submit entry
+                notificationState?.showJournalEntrySaved()
             },
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -78,7 +137,6 @@ fun ShowcaseScreen(modifier: Modifier = Modifier) {
         }
     }
 }
-
 
 @Preview(showBackground = true)
 @Composable
