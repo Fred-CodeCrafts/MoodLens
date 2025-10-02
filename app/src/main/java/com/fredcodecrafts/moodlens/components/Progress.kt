@@ -4,7 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ShowChart // Contoh ikon grafik naik
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -12,6 +12,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,6 +40,9 @@ fun WellnessProgressCard(
     trackColor: Color = Color(0xFFE0E0E0), // Abu-abu terang
     percentLabelColor: Color = Color(0xFF4CAF50) // Hijau
 ) {
+    // Remember the progress to avoid recomposition issues
+    val currentProgress = remember(progress) { progress }
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -55,9 +59,9 @@ fun WellnessProgressCard(
                 horizontalArrangement = Arrangement.SpaceBetween // Agar persentase di kanan
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Ikon
+                    // Ikon - GUNAKAN ICON YANG PASTI TERSEDIA
                     Icon(
-                        imageVector = Icons.Default.ShowChart, // Contoh ikon grafik naik
+                        imageVector = Icons.Default.Star, // ✅ ICON BINTANG (PASTI ADA)
                         contentDescription = null, // Deskripsi aksesibilitas
                         tint = MaterialTheme.colorScheme.primary, // Warna ikon bisa disesuaikan
                         modifier = Modifier.size(24.dp)
@@ -73,7 +77,7 @@ fun WellnessProgressCard(
 
                 // Kotak Persentase (misalnya 40%)
                 Text(
-                    text = "${(progress * 100).toInt()}%",
+                    text = "${(currentProgress * 100).toInt()}%",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White,
                     modifier = Modifier
@@ -84,9 +88,9 @@ fun WellnessProgressCard(
 
             Spacer(modifier = Modifier.height(16.dp)) // Jarak antara judul dan progress bar
 
-            // Linear Progress Bar
+            // Linear Progress Bar - VERSI TERBARU TANPA DEPRECATION
             LinearProgressIndicator(
-                progress = progress,
+                progress = { currentProgress }, // ✅ VERSI TERBARU - progress sebagai lambda
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(10.dp), // Ketebalan progress bar
