@@ -59,6 +59,11 @@ dependencies {
 // Coroutines (optional but recommended with Room)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
+    implementation ("androidx.room:room-runtime:2.8.1")
+    implementation ("androidx.room:room-ktx:2.8.1")
+    kapt ("androidx.room:room-compiler:2.8.1")
+
+    implementation("androidx.navigation:navigation-compose:2.9.5")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

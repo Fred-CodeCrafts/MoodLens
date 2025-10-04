@@ -9,9 +9,15 @@ import com.fredcodecrafts.moodlens.database.entities.Note
 
 @Dao
 interface NotesDao {
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(notes: List<Note>)
+
+    @Query("SELECT * FROM notes")
+    suspend fun getAllNotes(): List<Note>
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(note: Note)
 
-    @Query("SELECT * FROM notes_offline WHERE entryId = :entryId")
+    @Query("SELECT * FROM notes WHERE entryId = :entryId")
     suspend fun getNotesForEntry(entryId: String): List<Note>
 }

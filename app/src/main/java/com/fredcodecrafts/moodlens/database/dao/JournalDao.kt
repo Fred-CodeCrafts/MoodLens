@@ -10,8 +10,13 @@ import com.fredcodecrafts.moodlens.database.entities.JournalEntry
 @Dao
 interface JournalDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(entries: List<JournalEntry>)
+
+    @Query("SELECT * FROM journal_entries")
+    suspend fun getAllEntries(): List<JournalEntry>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entry: JournalEntry)
 
-    @Query("SELECT * FROM journal_entries_offline WHERE userId = :userId ORDER BY timestamp DESC")
+    @Query("SELECT * FROM journal_entries WHERE userId = :userId ORDER BY timestamp DESC")
     suspend fun getEntriesForUser(userId: String): List<JournalEntry>
 }

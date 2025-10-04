@@ -8,9 +8,15 @@ import com.fredcodecrafts.moodlens.database.entities.Message
 
 @Dao
 interface MessagesDao {
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(messages: List<Message>)
+
+    @Query("SELECT * FROM messages")
+    suspend fun getAllMessages(): List<Message>
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(message: Message)
 
-    @Query("SELECT * FROM messages_offline WHERE entryId = :entryId ORDER BY timestamp ASC")
+    @Query("SELECT * FROM messages WHERE entryId = :entryId ORDER BY timestamp ASC")
     suspend fun getMessagesForEntry(entryId: String): List<Message>
 }

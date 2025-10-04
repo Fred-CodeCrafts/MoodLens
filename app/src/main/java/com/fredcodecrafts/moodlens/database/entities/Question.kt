@@ -3,7 +3,7 @@ package com.fredcodecrafts.moodlens.database.entities
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "questions_offline")
+@Entity(tableName = "questions")
 data class Question(
     @PrimaryKey val questionId: String,
     val emotionLabel: String,  // Sadness, Anger, Anxiety, Happiness, Stress

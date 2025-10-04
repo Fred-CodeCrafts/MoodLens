@@ -20,6 +20,7 @@ import com.fredcodecrafts.moodlens.database.entities.*
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
+
     abstract fun userDao(): UserDao
     abstract fun journalDao(): JournalDao
     abstract fun notesDao(): NotesDao
@@ -37,7 +38,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "emotion_journal_db"
-                ).build()
+                )
+                    // Just a simple Room database, no encryption
+                    .build()
                 INSTANCE = instance
                 instance
             }
