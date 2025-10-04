@@ -6,20 +6,43 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.fredcodecrafts.moodlens.ui.theme.MoodLensTheme
+import com.fredcodecrafts.moodlens.components.InputField
+import com.fredcodecrafts.moodlens.components.TextAreaField
+import com.fredcodecrafts.moodlens.ui.theme.MainBackground
+import androidx.compose.ui.graphics.Color
+// IMPORT NOTIFICATION:
+import com.fredcodecrafts.moodlens.utils.GlobalNotificationHandler
+import com.fredcodecrafts.moodlens.utils.rememberNotificationState
+import com.fredcodecrafts.moodlens.utils.NotificationState
+// TAMBAHKAN INI UNTUK FUNCTION EXTENSION:
+import com.fredcodecrafts.moodlens.utils.showReflectionSaved
+import com.fredcodecrafts.moodlens.utils.showInfo
+import com.fredcodecrafts.moodlens.utils.showError
+import com.fredcodecrafts.moodlens.utils.showWarning
+import com.fredcodecrafts.moodlens.utils.showJournalEntrySaved
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
+            val notificationState = rememberNotificationState()
+
             MoodLensTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    ShowcaseScreen(Modifier.padding(innerPadding))
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                        ShowcaseScreen(
+                            modifier = Modifier.padding(innerPadding),
+                            notificationState = notificationState
+                        )
+                    }
+
+                    GlobalNotificationHandler(state = notificationState)
                 }
             }
         }
@@ -27,7 +50,13 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun ShowcaseScreen(modifier: Modifier = Modifier) {
+fun ShowcaseScreen(
+    modifier: Modifier = Modifier,
+    notificationState: NotificationState? = null
+) {
+    var name by remember { mutableStateOf("") }
+    var journalEntry by remember { mutableStateOf("") }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -35,32 +64,76 @@ fun ShowcaseScreen(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            text = "Hello Android!",
+            text = "Reflection Companion",
             style = MaterialTheme.typography.headlineMedium
         )
 
-        // Elevated Material 3 Button
+        InputField(
+            value = name,
+            onValueChange = { name = it },
+            label = "Name",
+            placeholder = "Enter your name"
+        )
+
+        TextAreaField(
+            text = "A short note.",
+            placeholder = "No text yet"
+        )
+
+        TextAreaField(
+            text = "This is a much longer reflection entry that will expand the height " +
+                    "naturally as needed. The width will be constrained between 120dp and 400dp."
+        )
+
+        // Tombol test notification
+        Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Button(
+                onClick = {
+                    notificationState?.showReflectionSaved()
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Test Success Notification")
+            }
+
+            Button(
+                onClick = {
+                    notificationState?.showInfo("This is an info notification")
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Test Info Notification")
+            }
+
+            Button(
+                onClick = {
+                    notificationState?.showError("This is an error notification")
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Test Error Notification")
+            }
+
+            Button(
+                onClick = {
+                    notificationState?.showWarning("This is a warning notification")
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Test Warning Notification")
+            }
+        }
+
         Button(
-            onClick = { /*TODO: Action*/ },
+            onClick = {
+                notificationState?.showJournalEntrySaved()
+            },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Primary Button")
-        }
-
-        // Outlined Button
-        OutlinedButton(
-            onClick = { /*TODO: Action*/ },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Outlined Button")
-        }
-
-        // Text Button
-        TextButton(
-            onClick = { /*TODO: Action*/ },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Text Button")
+            Text("Save Reflection")
         }
     }
 }
