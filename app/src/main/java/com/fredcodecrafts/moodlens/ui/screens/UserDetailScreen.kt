@@ -13,7 +13,11 @@ import com.fredcodecrafts.moodlens.database.entities.User
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-
+import androidx.compose.foundation.layout.*
+import androidx.compose.ui.unit.dp
+import com.fredcodecrafts.moodlens.components.*   // ✅ Imports your custom UI kit
+import com.fredcodecrafts.moodlens.ui.theme.MoodLensTheme  // ✅ Your theme wrapper if you use one
+import com.fredcodecrafts.moodlens.utils.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserDetailScreen(

@@ -9,7 +9,12 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.fredcodecrafts.moodlens.database.AppDatabase
 import com.fredcodecrafts.moodlens.navigation.Screen
-
+import androidx.compose.foundation.layout.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import com.fredcodecrafts.moodlens.components.*   // ✅ Imports your custom UI kit
+import com.fredcodecrafts.moodlens.ui.theme.MoodLensTheme  // ✅ Your theme wrapper if you use one
+import com.fredcodecrafts.moodlens.utils.*
 @Composable
 fun MainMenu(
     navController: NavHostController,
