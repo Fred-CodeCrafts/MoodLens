@@ -10,3 +10,11 @@ val DarkPurple = Color(0xFF5A35A2)
 val LightPurple = Color(0xFFD9C8FA)
 val TextPrimary = Color(0xFF1C1C28)
 val TextSecondary = Color(0xFF6F6F80)
+
+// Notification colors
+val NotificationSuccess = Color(0xFF4CAF50)   // Green
+val NotificationError = Color(0xFFF44336)     // Red
+val NotificationWarning = Color(0xFFFFC107)   // Amber / Yellow
+val NotificationInfo = Color(0xFF2196F3)      // Blue
+val NotificationTextLight = Color(0xFFFFFFFF)
+val NotificationTextDark = TextPrimary
