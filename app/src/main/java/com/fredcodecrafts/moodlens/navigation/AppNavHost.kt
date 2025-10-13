@@ -37,7 +37,7 @@ fun AppNavHost(
             )
         }
         composable(Screen.Home.route) {
-            MainMenu(navController = navController, database = database)
+            MainMenuScreen(navController = navController, database = database)
         }
         composable(Screen.CameraScan.route) { CameraScanScreen() }
         composable(Screen.Journal.route) { JournalScreen() }
