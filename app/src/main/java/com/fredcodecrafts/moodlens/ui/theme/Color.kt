@@ -65,3 +65,6 @@ val GradientBackground = Brush.linearGradient(
     start = Offset(0f, 0f),
     end = Offset(0f, 1f)
 )
+
+val CardBackground = Color(0x99FFFFFF) // White @ 60% opacity
+val CardShadow = Color(0x33000000)     // Soft shadow (20% black)

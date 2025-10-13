@@ -1,6 +1,5 @@
 package com.fredcodecrafts.moodlens.ui.screens
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,17 +13,35 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import com.fredcodecrafts.moodlens.R
 import com.fredcodecrafts.moodlens.components.*
 import com.fredcodecrafts.moodlens.database.AppDatabase
 import com.fredcodecrafts.moodlens.database.entities.MoodScanStat
+import com.fredcodecrafts.moodlens.ui.theme.*
+import com.fredcodecrafts.moodlens.utils.fadeInAnimation
+import com.fredcodecrafts.moodlens.utils.slideUpAnimation
 import kotlinx.coroutines.launch
+import com.fredcodecrafts.moodlens.R
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.ui.draw.shadow
+import com.fredcodecrafts.moodlens.navigation.Screen
+import com.fredcodecrafts.moodlens.ui.theme.AppTypography
 
 @Composable
 fun MainMenuScreen(
@@ -49,183 +66,306 @@ fun MainMenuScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .background(GradientBackground)
+            .padding(20.dp)
     ) {
         // Header
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .fadeInAnimation()
         ) {
             Text(
                 text = "MoodLens",
                 style = MaterialTheme.typography.headlineMedium.copy(
-                    color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
-                )
+                ),
+                modifier = Modifier.graphicsLayer(alpha = 0.99f) // Needed for blend mode to work
+                    .drawWithCache {
+                        val brush = GradientPrimary
+                        onDrawWithContent {
+                            // Draw text with gradient fill instead of plain color
+                            drawContent()
+                            drawRect(
+                                brush = brush,
+                                blendMode = BlendMode.SrcAtop // <— applies gradient *into* text shape
+                            )
+                        }
+                    },
+                color = Color.White // base color (will blend into gradient)
             )
+
             Text(
                 text = "Your emotional wellness companion",
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    color = TextSecondary
                 )
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // Stats
+        // Stats Section
         Row(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .slideUpAnimation()
         ) {
-            AppCard(
-                modifier = Modifier.weight(1f),
-                backgroundColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f)
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(12.dp)
-                ) {
-                    // Flame icon from vector drawable
-                    Image(
-                        painter = painterResource(R.drawable.ic_flame),
-                        contentDescription = "Daily Scans",
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("$dailyScans", color = MaterialTheme.colorScheme.onSecondary, fontSize = 18.sp)
-                    Text(
-                        "Daily Scans",
-                        color = MaterialTheme.colorScheme.onSecondary.copy(alpha = 0.7f),
-                        fontSize = 12.sp
-                    )
-                }
-            }
+            GradientStatCard(
+                title = "Daily Scans",
+                value = "$dailyScans",
+                iconPainter = painterResource(R.drawable.ic_flame), // 🔥 custom flame icon
+                gradient = GradientCalm,
+                modifier = Modifier.weight(1f)
+            )
 
-            AppCard(
-                modifier = Modifier.weight(1f),
-                backgroundColor = MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.DateRange,
-                        contentDescription = "Week Streak",
-                        tint = MaterialTheme.colorScheme.onError
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("$weekStreak", color = MaterialTheme.colorScheme.onError, fontSize = 18.sp)
-                    Text(
-                        "Week Streak",
-                        color = MaterialTheme.colorScheme.onError.copy(alpha = 0.7f),
-                        fontSize = 12.sp
-                    )
-                }
-            }
+            GradientStatCard(
+                title = "Week Streak",
+                value = "$weekStreak",
+                iconVector = Icons.Default.DateRange, // standard icon
+                gradient = GradientWarm,
+                modifier = Modifier.weight(1f)
+            )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
         // Menu Items
         val menuItems = listOf(
             MenuItem(
                 title = "Camera Scan",
                 description = "Check your mood with AI",
-                onClick = { navController.navigate("camera") },
+                iconPainter = painterResource(R.drawable.ic_camera), // 🔥 custom flame icon
+                onClick = { navController.navigate(Screen.CameraScan.route) },
+                gradient = GradientPrimary,
                 available = true
             ),
             MenuItem(
                 title = "Journal",
                 description = "View your mood history",
-                onClick = { navController.navigate("journal") },
+                iconPainter = painterResource(R.drawable.ic_book), // 🔥 custom flame icon
+                onClick = { navController.navigate("Journal") },
+                gradient = GradientCalm,
                 available = true
             ),
             MenuItem(
                 title = "Insights",
                 description = "Mood patterns & analytics",
-                onClick = { navController.navigate("insights") },
+                iconPainter = painterResource(R.drawable.ic_chart), // 🔥 custom flame icon
+                onClick = { navController.navigate("Insights") },
+                gradient = GradientWarm,
                 available = canAccessInsights
             )
         )
 
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            menuItems.forEach { item ->
-                AppCard(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = item.available) { item.onClick() }
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(12.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(item.title.first().toString(), color = MaterialTheme.colorScheme.primary)
-                        }
-
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(item.title, fontWeight = FontWeight.Bold)
-                                if (!item.available) {
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Icon(
-                                        Icons.Default.Lock,
-                                        contentDescription = "Locked",
-                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                            Text(
-                                item.description,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                                fontSize = 12.sp
-                            )
-                            if (item.title == "Insights" && !canAccessInsights) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                AppBadge(text = "Unlock after 5 scans", type = BadgeType.Secondary)
-                            }
-                        }
-                    }
-                }
+            menuItems.forEachIndexed { index, item ->
+                GradientMenuCard(
+                    item = item,
+                    index = index,
+                    canAccessInsights = canAccessInsights
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
-        // Quick Action
+        // Quick Action Button
         AppButton(
             text = "Quick Mood Scan",
             onClick = { navController.navigate("camera") },
-            modifier = Modifier.fillMaxWidth(),
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            shape = RoundedCornerShape(8.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .slideUpAnimation(),
+            containerColor = MainPurple,
+            contentColor = Color.White,
+            shape = RoundedCornerShape(12.dp)
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         // Motivation
         Text(
             text = "🌟 Every day is a new opportunity to understand yourself better",
             modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-            fontSize = 12.sp,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            color = TextSecondary,
+            textAlign = TextAlign.Center,
+            fontSize = MaterialTheme.typography.bodySmall.fontSize
         )
     }
 }
 
+
+
+/**
+ * GradientStatCard built on top of AppCard.
+ * Layout:
+ * [Icon] [Value]
+ *   Title
+ */
+@Composable
+fun GradientStatCard(
+    title: String,
+    value: String,
+    gradient: Brush,
+    modifier: Modifier = Modifier,
+    iconVector: ImageVector? = null,
+    iconPainter: Painter? = null
+) {
+    AppCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(110.dp),
+        backgroundColor = Color.Transparent, // so gradient shows
+        borderColor = Color.Transparent,
+        contentPadding = PaddingValues(0.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .background(gradient, shape = RoundedCornerShape(12.dp))
+                .fillMaxSize()
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                // --- Top Row: Icon + Value ---
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    when {
+                        iconPainter != null -> {
+                            Image(
+                                painter = iconPainter,
+                                contentDescription = title,
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .padding(end = 8.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
+                        iconVector != null -> {
+                            Icon(
+                                imageVector = iconVector,
+                                contentDescription = title,
+                                tint = Color.White,
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .padding(end = 8.dp)
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = value,
+                        color = Color.White,
+                        style = AppTypography.displaySmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 26.sp
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // --- Bottom Text (title/label) ---
+                Text(
+                    text = title,
+                    color = Color.White.copy(alpha = 0.85f),
+                    style = AppTypography.bodySmall
+                )
+            }
+        }
+    }
+}
+
+
+@Composable
+fun GradientMenuCard(
+    item: MenuItem,
+    index: Int,
+    canAccessInsights: Boolean
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = item.available) { item.onClick() }
+            .shadow(
+                elevation = 8.dp,
+                shape = RoundedCornerShape(12.dp),
+                ambientColor = MaterialTheme.colorScheme.CardShadowColor,
+                spotColor = MaterialTheme.colorScheme.CardShadowColor
+            )
+            .background(Color.White, RoundedCornerShape(12.dp)) // Fixed Color.White
+            .padding(14.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(item.gradient),
+                contentAlignment = Alignment.Center
+            ) {
+                when {
+                    item.iconVector != null -> Icon(
+                        imageVector = item.iconVector,
+                        contentDescription = item.title,
+                        tint = Color.White
+                    )
+                    item.iconPainter != null -> Image(
+                        painter = item.iconPainter,
+                        contentDescription = item.title
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = item.title,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    if (!item.available) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "Locked",
+                            tint = TextSecondary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+                Text(
+                    text = item.description,
+                    color = TextSecondary,
+                    fontSize = MaterialTheme.typography.labelSmall.fontSize
+                )
+                if (item.title == "Insights" && !canAccessInsights) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    AppBadge(text = "Unlock after 5 scans", type = BadgeType.Secondary)
+                }
+            }
+        }
+    }
+}
+
+
+
 data class MenuItem(
     val title: String,
     val description: String,
+    val iconVector: ImageVector? = null,
+    val iconPainter: Painter? = null,
     val onClick: () -> Unit,
+    val gradient: Brush,
     val available: Boolean = true
 )

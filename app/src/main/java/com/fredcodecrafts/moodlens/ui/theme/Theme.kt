@@ -4,6 +4,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.ColorScheme
+import androidx.compose.ui.graphics.Color
 
 private val LightColors = lightColorScheme(
     primary = MainPurple,
@@ -11,7 +13,9 @@ private val LightColors = lightColorScheme(
     background = MainBackground,
     onBackground = TextPrimary,
     secondary = LightPurple,
-    onSecondary = TextPrimary
+    onSecondary = TextPrimary,
+    surfaceVariant = CardBackground
+
 )
 
 private val DarkColors = darkColorScheme(
@@ -20,7 +24,10 @@ private val DarkColors = darkColorScheme(
     background = TextPrimary,
     onBackground = MainBackground,
     secondary = DarkPurple,
-    onSecondary = MainBackground
+    onSecondary = MainBackground,
+    surfaceVariant = CardBackground
+
+
 )
 
 @Composable
@@ -34,3 +41,11 @@ fun MoodLensTheme(
         content = content
     )
 }
+
+val ColorScheme.CardBackgroundColor: Color
+    @Composable
+    get() = CardBackground
+
+val ColorScheme.CardShadowColor: Color
+    @Composable
+    get() = CardShadow
