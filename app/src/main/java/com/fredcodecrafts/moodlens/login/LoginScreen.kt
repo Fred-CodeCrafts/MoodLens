@@ -1,5 +1,10 @@
 package com.fredcodecrafts.moodlens.login
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -24,6 +29,7 @@ import com.fredcodecrafts.moodlens.ui.theme.gradientPrimary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.draw.rotate
 import com.fredcodecrafts.moodlens.R
 
 
@@ -34,6 +40,16 @@ fun LoginScreen(
 ) {
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    // Rotation animation for spinner
+    val infiniteTransition = rememberInfiniteTransition()
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = LinearEasing)
+        )
+    )
 
     Box(
         modifier = Modifier
@@ -104,13 +120,13 @@ fun LoginScreen(
 
                     Spacer(Modifier.height(24.dp))
 
-                    // Dummy Auth Button
+                    // Google Sign-In Button with spinner in primary color
                     AppButton(
                         text = if (isLoading) "Signing in..." else "Continue with Google",
                         onClick = {
                             scope.launch {
                                 isLoading = true
-                                delay(1500)
+                                delay(1500) // simulate login
                                 isLoading = false
                                 onLoginSuccess()
                             }
@@ -118,29 +134,32 @@ fun LoginScreen(
                         enabled = !isLoading,
                         modifier = Modifier.fillMaxWidth(),
                         leadingIcon = {
-                            Image(
-                                painter = painterResource(id = R.drawable.ic_google),
-                                contentDescription = "Google Logo",
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(Modifier.width(12.dp)) // Increased spacing here
+                            if (isLoading) {
+                                // Spinner in primary color
+                                CircularProgressIndicator(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    strokeWidth = 3.dp,
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .rotate(rotation)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                            } else {
+                                // Google logo
+                                Image(
+                                    painter = painterResource(id = R.drawable.ic_google),
+                                    contentDescription = "Google Logo",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                            }
                         },
-                        containerColor = Color.White,
-                        contentColor = Color.Black,
-                        shape = RoundedCornerShape(4.dp)
+                        containerColor = Color.White,   // always white
+                        contentColor = Color.Black,     // text black
+                        shape = RoundedCornerShape(12.dp) // cute rounded corners
                     )
 
                     Spacer(Modifier.height(16.dp))
-
-                    // Later, you can easily replace the dummy auth with Google
-                    // Example:
-                    // AppButton(
-                    //     text = "Sign in with Google",
-                    //     leadingIcon = { Image(painterResource(R.drawable.ic_google), null, Modifier.size(20.dp)) },
-                    //     onClick = { /* TODO: handle Google sign-in */ },
-                    //     modifier = Modifier.fillMaxWidth(),
-                    //     variant = ButtonVariant.Outline
-                    // )
 
                     Text(
                         text = "Your mood data stays private and secure.",
