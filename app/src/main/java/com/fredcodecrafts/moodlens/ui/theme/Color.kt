@@ -16,5 +16,16 @@ val NotificationSuccess = Color(0xFF4CAF50)   // Green
 val NotificationError = Color(0xFFF44336)     // Red
 val NotificationWarning = Color(0xFFFFC107)   // Amber / Yellow
 val NotificationInfo = Color(0xFF2196F3)      // Blue
-val NotificationTextLight = Color(0xFFFFFFFF)
-val NotificationTextDark = TextPrimary
+val NotificationText = TextSecondary
+
+// --- Button Defaults ---
+val ButtonDefaultBackground = MainPurple
+val ButtonDefaultContent = Color.White
+
+val ButtonSecondaryBackground = LightPurple
+val ButtonSecondaryContent = TextPrimary
+
+val ButtonDestructiveBackground = NotificationError
+val ButtonDestructiveContent = Color.White
+
+val ButtonOutlineContent = MainPurple

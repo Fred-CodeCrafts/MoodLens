@@ -8,5 +8,7 @@ data class JournalEntry(
     @PrimaryKey val entryId: String,
     val userId: String,
     val mood: String, // happy, sad, anxious, calm, excited, tired
-    val timestamp: Long
+    val timestamp: Long,
+    val location: String? = null // 🆕 optional field for city, coordinates, etc.
+
 )

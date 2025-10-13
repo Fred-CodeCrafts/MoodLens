@@ -2,11 +2,14 @@ package com.fredcodecrafts.moodlens.components
 
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CornerBasedShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
 
 // --- Variants ---
 enum class ButtonVariant { Default, Secondary, Destructive, Outline }
@@ -29,27 +32,41 @@ fun AppButton(
     size: ButtonSize = ButtonSize.Default,
     leadingIcon: @Composable (() -> Unit)? = null,
     trailingIcon: @Composable (() -> Unit)? = null,
+    containerColor: Color? = null, // optional override
+    contentColor: Color? = null,   // optional override
+    shape: CornerBasedShape? = null // optional override
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+
+    // Determine colors
     val colors = when (variant) {
-        ButtonVariant.Default -> ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
-        )
-        ButtonVariant.Secondary -> ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.secondary,
-            contentColor = MaterialTheme.colorScheme.onSecondary
-        )
-        ButtonVariant.Destructive -> ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.error,
-            contentColor = MaterialTheme.colorScheme.onError
-        )
         ButtonVariant.Outline -> ButtonDefaults.outlinedButtonColors(
-            contentColor = MaterialTheme.colorScheme.primary
+            containerColor = containerColor ?: Color.Transparent,
+            contentColor = contentColor ?: MaterialTheme.colorScheme.primary
+        )
+        else -> ButtonDefaults.buttonColors(
+            containerColor = containerColor ?: when (variant) {
+                ButtonVariant.Default -> MaterialTheme.colorScheme.primary
+                ButtonVariant.Secondary -> MaterialTheme.colorScheme.secondary
+                ButtonVariant.Destructive -> MaterialTheme.colorScheme.error
+                else -> MaterialTheme.colorScheme.primary
+            },
+            contentColor = contentColor ?: when (variant) {
+                ButtonVariant.Default -> MaterialTheme.colorScheme.onPrimary
+                ButtonVariant.Secondary -> MaterialTheme.colorScheme.onSecondary
+                ButtonVariant.Destructive -> MaterialTheme.colorScheme.onError
+                else -> MaterialTheme.colorScheme.onPrimary
+            }
         )
     }
 
-    val interactionSource = remember { MutableInteractionSource() }
+    // Determine shape
+    val buttonShape = shape ?: when (variant) {
+        ButtonVariant.Outline -> MaterialTheme.shapes.medium
+        else -> RoundedCornerShape(12.dp)
+    }
 
+    // Button content
     val content: @Composable RowScope.() -> Unit = {
         if (leadingIcon != null) {
             leadingIcon()
@@ -69,13 +86,14 @@ fun AppButton(
         }
     }
 
+    // Render the button
     when (variant) {
         ButtonVariant.Outline -> OutlinedButton(
             onClick = onClick,
             enabled = enabled,
             colors = colors,
             interactionSource = interactionSource,
-            shape = MaterialTheme.shapes.medium,
+            shape = buttonShape,
             modifier = modifier
                 .padding(horizontal = 8.dp)
                 .height(size.height.dp)
@@ -87,7 +105,7 @@ fun AppButton(
             enabled = enabled,
             colors = colors,
             interactionSource = interactionSource,
-            shape = MaterialTheme.shapes.medium,
+            shape = buttonShape,
             modifier = modifier
                 .padding(horizontal = 8.dp)
                 .height(size.height.dp)

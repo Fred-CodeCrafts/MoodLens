@@ -14,15 +14,18 @@ object DummyData {
             entryId = "entry1",
             userId = "user1",
             mood = "happy",
-            timestamp = Date().time
+            timestamp = Date().time,
+            location = "Jakarta"
         ),
         JournalEntry(
             entryId = "entry2",
             userId = "user1",
             mood = "sad",
-            timestamp = Date(System.currentTimeMillis() - 86400000L).time // 1 day ago
+            timestamp = Date(System.currentTimeMillis() - 86400000L).time,
+            location = "Bandung"
         )
     )
+
 
     val notes = listOf(
         Note(noteId = "note1", entryId = "entry1", content = "Had a great workout!"),

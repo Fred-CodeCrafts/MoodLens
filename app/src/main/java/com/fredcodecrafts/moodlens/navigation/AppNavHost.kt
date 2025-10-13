@@ -17,11 +17,24 @@ fun AppNavHost(
 ) {
     NavHost(
         navController = navController,
-        startDestination = Screen.Login.route,
+        startDestination = Screen.Home.route,
         modifier = modifier
     ) {
         composable(Screen.Login.route) {
-            LoginScreen { navController.navigate(Screen.Home.route) }
+            LoginScreen(
+                onLoginSuccess = {
+                    // Navigate to home after login
+                    navController.navigate(Screen.CameraScan.route) {
+                        popUpTo(Screen.Login.route) { inclusive = true }
+                    }
+                },
+                onSkipDemo = {
+                    // Navigate to home skipping login
+                    navController.navigate(Screen.CameraScan.route) {
+                        popUpTo(Screen.Login.route) { inclusive = true }
+                    }
+                }
+            )
         }
         composable(Screen.Home.route) {
             MainMenu(navController = navController, database = database)
