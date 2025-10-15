@@ -41,8 +41,10 @@ fun AppNavHost(
         }
         composable(Screen.CameraScan.route) { CameraScanScreen() }
         composable(Screen.Journal.route) { JournalScreen() }
-        composable(Screen.Insights.route) { InsightsScreen() }
-        composable(Screen.Reflection.route) { ReflectionScreen() }
+        composable(Screen.Insights.route) {
+            InsightsScreen(navController = navController, database = database)
+        }
+            composable(Screen.Reflection.route) { ReflectionScreen() }
         composable(Screen.UserDetail.route) {
             UserDetailScreen(navController = navController, database = database)
         }
