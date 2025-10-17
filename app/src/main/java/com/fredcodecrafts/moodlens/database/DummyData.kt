@@ -15,38 +15,40 @@ object DummyData {
             userId = "user1",
             mood = "happy",
             timestamp = Date().time,
-            location = "Jakarta"
+            location = "Jakarta",
+            aiReflection = "It's wonderful to hear you're feeling happy! What's bringing you joy today?"
         ),
         JournalEntry(
             entryId = "entry2",
             userId = "user1",
             mood = "sad",
             timestamp = Date().time,
-            location = "Bandung"
-        )
-        ,
+            location = "Bandung",
+            aiReflection = "It's okay to feel this way. Acknowledging sadness is a brave first step. Is there anything specific on your mind?"
+        ),
         JournalEntry(
             entryId = "entry3",
             userId = "user1",
             mood = "happy",
             timestamp = Date().time,
-            location = "Bandung"
-        )
-        ,
+            location = "Bandung",
+            aiReflection = "That's fantastic! Let's take a moment to cherish this feeling. What's one thing that made you smile today?"
+        ),
         JournalEntry(
             entryId = "entry4",
             userId = "user1",
             mood = "anxious",
             timestamp = Date().time,
-            location = "Bandung"
-        )
-        ,
+            location = "Bandung",
+            aiReflection = "Anxiety can feel overwhelming. Let's try to ground ourselves. What's one thing you can see or feel right now that is real?"
+        ),
         JournalEntry(
             entryId = "entry5",
             userId = "user1",
             mood = "happy",
             timestamp = Date().time,
-            location = "Bandung"
+            location = "Bandung",
+            aiReflection = "So glad to hear you're feeling happy! Let's capture this moment. What's contributing to this positive feeling?"
         )
     )
 

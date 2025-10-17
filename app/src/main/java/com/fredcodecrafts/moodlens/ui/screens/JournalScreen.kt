@@ -47,163 +47,136 @@ import java.util.*
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 
-private fun formatTimestampToDate(timestamp: Long): String {
-    val entryCalendar = Calendar.getInstance().apply { timeInMillis = timestamp }
-    val todayCalendar = Calendar.getInstance()
-    return when {
-        entryCalendar.get(Calendar.YEAR) == todayCalendar.get(Calendar.YEAR) &&
-                entryCalendar.get(Calendar.DAY_OF_YEAR) == todayCalendar.get(Calendar.DAY_OF_YEAR) -> "Today"
-        else -> {
-            todayCalendar.add(Calendar.DAY_OF_YEAR, -1)
-            if (entryCalendar.get(Calendar.YEAR) == todayCalendar.get(Calendar.YEAR) &&
-                entryCalendar.get(Calendar.DAY_OF_YEAR) == todayCalendar.get(Calendar.DAY_OF_YEAR)
-            ) "Yesterday"
-            else SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(timestamp))
-        }
-    }
+private fun formatTsToDate(ts: Long): String {
+    val cal = Calendar.getInstance().apply { timeInMillis = ts }
+    return SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(cal.time)
 }
-
-private fun formatTimestampToTime(timestamp: Long): String {
-    val format = SimpleDateFormat("h:mm a", Locale.getDefault())
-    return format.format(Date(timestamp))
+private fun formatTsToTime(ts: Long): String {
+    return SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(ts))
 }
-
 private fun getEmojiForMood(mood: String): String = when (mood.lowercase()) {
-    "anxious" -> "😟"
     "happy" -> "😊"
     "sad" -> "😢"
-    "anger" -> "😠"
-    "joy" -> "😄"
-    "stress" -> "😫"
+    "anxious" -> "😟"
     "tired" -> "😴"
+    "anger" -> "😠"
+    "stress" -> "😫"
     else -> "😐"
 }
+private fun formatTimestampToDate(ts: Long): String {
+    val sdf = java.text.SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+    return sdf.format(java.util.Date(ts))
+}
+private fun formatTimestampToTime(ts: Long): String {
+    val sdf = java.text.SimpleDateFormat("h:mm a", Locale.getDefault())
+    return sdf.format(java.util.Date(ts))
+}
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun JournalScreen(
-    navController: NavController,
-    // Context dan userId tidak lagi diperlukan di sini
+    navController: NavController
 ) {
-    var entryToDelete by remember { mutableStateOf<JournalEntry?>(null) }
-
-    // ✅ FIX: Inisialisasi semua state langsung dari DummyData.
-    var entries by remember { mutableStateOf(DummyData.journalEntries) }
-    var notesMap by remember { mutableStateOf(DummyData.notes.groupBy { it.entryId }) }
-    var stats by remember {
-        mutableStateOf(
-            JournalStats(
-                totalEntries = DummyData.journalEntries.size,
-                withNotes = DummyData.notes.groupBy { it.entryId }.keys.size,
-                daysTracked = DummyData.journalEntries.map { formatTimestampToDate(it.timestamp) }.distinct().size
-            )
-        )
-    }
-    var selectedEntryId by remember { mutableStateOf<String?>(null) }
-    var isAddingNote by remember { mutableStateOf(false) }
-    var noteText by remember { mutableStateOf("") }
-    // ✅ FIX: isLoading tidak lagi diperlukan, selalu false.
-    val isLoading by remember { mutableStateOf(false) }
-    val latestEntry = entries.firstOrNull()
-
-    // ✅ FIX: LaunchedEffect yang mengakses database DIHAPUS.
-
-    // ✅ FIX: Fungsi onSaveNote sekarang HANYA mengubah state lokal.
-    val onSaveNote: () -> Unit = {
-        if (noteText.isNotBlank() && selectedEntryId != null) {
-            val newNote = Note("note_${System.currentTimeMillis()}", selectedEntryId!!, noteText)
-            val updatedNotes = notesMap[selectedEntryId]?.toMutableList() ?: mutableListOf()
-            updatedNotes.add(newNote)
-            notesMap = notesMap.toMutableMap().apply { put(selectedEntryId!!, updatedNotes) }
-            stats = stats.copy(withNotes = notesMap.values.count { it.isNotEmpty() })
-            isAddingNote = false
-            noteText = ""
+    val context = LocalContext.current
+    // DAOs
+    val db = remember { AppDatabase.getDatabase(context) }
+    val journalDao = remember { db.journalDao() }
+    val notesDao = remember { db.notesDao() }
+    // UI state
+    var entries by remember { mutableStateOf<List<JournalEntry>>(emptyList()) }
+    var notesMap by remember { mutableStateOf<Map<String, List<Note>>>(emptyMap()) }
+    var stats by remember { mutableStateOf(JournalStats(0, 0, 0)) }
+    var isLoading by remember { mutableStateOf(true) }
+    // Load from database once
+    LaunchedEffect(Unit) {
+        isLoading = true
+        val loadedEntries = journalDao.getAllEntries()
+        val loadedNotesMap = loadedEntries.associate { entry ->
+            entry.entryId to notesDao.getNotesForEntry(entry.entryId)
         }
+        val totalEntries = loadedEntries.size
+        val totalNotes = loadedNotesMap.values.sumOf { it.size }
+        val daysTracked = loadedEntries
+            .map { formatTsToDate(it.timestamp) }
+            .distinct()
+            .size
+        entries = loadedEntries
+        notesMap = loadedNotesMap
+        stats = JournalStats(totalEntries, totalNotes, daysTracked)
+        isLoading = false
     }
-
-    // ✅ FIX: Fungsi onDeleteEntry sekarang HANYA mengubah state lokal.
-    val onDeleteEntry: (JournalEntry) -> Unit = { entry ->
-        entries = entries.filter { it.entryId != entry.entryId }
-        notesMap = notesMap.toMutableMap().apply { remove(entry.entryId) }
-        stats = stats.copy(totalEntries = entries.size)
-    }
-
-    // Dialog konfirmasi hapus
-    if (entryToDelete != null) {
-        AlertDialog(
-            onDismissRequest = { entryToDelete = null },
-            title = { Text("Delete Entry") },
-            text = { Text("Are you sure you want to delete this journal entry?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDeleteEntry(entryToDelete!!)
-                    entryToDelete = null
-                }) { Text("Confirm") }
-            },
-            dismissButton = {
-                TextButton(onClick = { entryToDelete = null }) { Text("Cancel") }
+    Scaffold { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            // Stats section
+            AppCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                CardHeader {
+                    androidx.compose.material3.Text("Your Journal Stats")
+                }
+                CardContent {
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        StatsColumn(value = stats.totalEntries.toString(), label = "Entries")
+                        StatsColumn(value = stats.withNotes.toString(), label = "Notes")
+                        StatsColumn(value = stats.daysTracked.toString(), label = "Days")
+                    }
+                }
             }
-        )
-    }
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        JournalHeader(onBackClick = { navController.navigateUp() })
-
-        when {
-            isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = MainPurple)
-            }
-            entries.isEmpty() -> EmptyJournalView {
-                // Untuk testing, kita bisa buat tombol ini memuat ulang data dummy
-                entries = DummyData.journalEntries
-                notesMap = DummyData.notes.groupBy { it.entryId }
-            }
-            else -> {
-                // ✅ FIX: Semua konten sekarang berada di dalam LazyColumn
-                LazyColumn(
+            // Loading indicator
+            if (isLoading) {
+                Box(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    contentAlignment = Alignment.Center
                 ) {
-                    item {
-                        StatsCard(stats = stats)
-                    }
-
-                    if (latestEntry != null && notesMap[latestEntry.entryId].isNullOrEmpty() && !isAddingNote) {
-                        item {
-                            AddNoteButton(onClick = {
-                                selectedEntryId = latestEntry.entryId
-                                isAddingNote = true
-                            })
-                        }
-                    }
-
-                    item {
-                        AnimatedVisibility(visible = isAddingNote) {
-                            AddNoteCard(
-                                noteText = noteText,
-                                onNoteChange = { noteText = it },
-                                onSaveClick = onSaveNote,
-                                onCancelClick = {
-                                    isAddingNote = false
-                                    noteText = ""
-                                }
-                            )
-                        }
-                    }
-
-                    items(items = entries, key = { it.entryId }) { entry ->
-                        JournalEntryCard(
-                            entry = entry,
-                            // ✅ 3. KIRIM DATA NOTES DARI SINI
-                            notes = notesMap[entry.entryId] ?: emptyList(),
-                            onClick = {
-                                navController.navigate(Screen.Reflection.createRoute(entry.entryId, entry.mood))
-                            },
-                            onLongClick = {
-                                entryToDelete = entry
+                    CircularProgressIndicator()
+                }
+                return@Column
+            }
+            // Entries list
+            LazyColumn(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(entries, key = { it.entryId }) { entry ->
+                    AppCard(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        // Header: mood emoji and date/time
+                        CardHeader {
+                            Row(
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                androidx.compose.material3.Text(
+                                    text = getEmojiForMood(entry.mood),
+                                    style = androidx.compose.material3.MaterialTheme.typography.headlineMedium
+                                )
+                                androidx.compose.material3.Text(
+                                    text = formatTsToTime(entry.timestamp),
+                                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
+                                )
                             }
-                        )
+                        }
+                        // Content: location + notes
+                        CardContent {
+                            androidx.compose.material3.Text(
+                                text = entry.location ?: "No location",
+                                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            notesMap[entry.entryId]?.forEach { note ->
+                                NoteCard(noteText = note.content)
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+                        }
                     }
                 }
             }
@@ -253,7 +226,7 @@ fun StatsCard(stats: JournalStats) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(brush = JournalGradient)
+                .background(brush = GradientPrimary)
                 .padding(16.dp),
             horizontalArrangement = Arrangement.SpaceAround
         ) {
@@ -333,10 +306,9 @@ fun JournalEntryCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            //.padding(horizontal = 16.dp, vertical = 8.dp) // Padding dikontrol oleh LazyColumn
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = Color.White), // ✅ FIX: Beri warna solid
+        colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
@@ -344,14 +316,21 @@ fun JournalEntryCard(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.Top
         ) {
+            // Mood icon bubble
             Box(
-                modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFFF3E8FF)), // Warna lebih soft
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFF3E8FF)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(text = getEmojiForMood(entry.mood), fontSize = 24.sp)
+                Text(
+                    text = getEmojiForMood(entry.mood),
+                    fontSize = 24.sp
+                )
             }
-            // ✅ FIX: Weight diubah menjadi 1f agar mengisi sisa ruang
             Column(modifier = Modifier.weight(1f)) {
+                // Mood label & timestamp
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -359,59 +338,64 @@ fun JournalEntryCard(
                 ) {
                     Card(
                         shape = RoundedCornerShape(50.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF3E8FF)), // Warna disamakan
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF3E8FF)),
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
                         Text(
                             text = entry.mood.replaceFirstChar { it.uppercase() },
-                            style = MaterialTheme.typography.labelLarge, // Style lebih pas
                             color = MainPurple,
+                            style = MaterialTheme.typography.labelLarge,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                         )
                     }
                     Text(
                         text = formatTimestampToTime(entry.timestamp),
-                        style = MaterialTheme.typography.bodyMedium, color = TextSecondary
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(Modifier.height(8.dp))
+                // Date
                 Text(
                     text = formatTimestampToDate(entry.timestamp),
-                    style = MaterialTheme.typography.titleMedium, // Ukuran lebih besar agar jelas
+                    style = MaterialTheme.typography.titleMedium,
                     color = TextPrimary,
                     fontWeight = FontWeight.SemiBold
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                // ✅ FIX: Ganti emoji dengan Icon
+                Spacer(Modifier.height(4.dp))
+                // Location row
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        painter = painterResource(id = R.drawable.location), // Call the XML file
+                        painter = painterResource(id = R.drawable.location),
                         contentDescription = "Location",
                         tint = TextSecondary,
                         modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(Modifier.width(4.dp))
                     Text(
-                        text = entry.location ?: "No location", // Handle jika lokasi null
-                        style = MaterialTheme.typography.bodyMedium, color = TextSecondary
+                        text = entry.location ?: "No location",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
                     )
                 }
-
+                // Notes list
                 if (notes.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(Modifier.height(12.dp))
                     notes.forEach { note ->
                         NoteCard(noteText = note.content)
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
-                if (entry.aiReflection != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    ReflectionCard(reflectionText = entry.aiReflection)
+                // AI-generated reflection
+                entry.aiReflection?.let { reflectionText ->
+                    Spacer(Modifier.height(8.dp))
+                    ReflectionCard(reflectionText = reflectionText)
                 }
             }
         }
     }
 }
+
 
 @Composable
 fun NoteCard(noteText: String) {

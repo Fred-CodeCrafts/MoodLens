@@ -19,7 +19,9 @@ val SecondaryBlue = Color(0xFFB6E0FE)     // hsl(218, 100%, 88%)
 val AccentCoral = Color(0xFFFCA38A)       // hsl(14, 100%, 82%)
 val SuccessGreen = Color(0xFF86EFAC)      // hsl(142, 76%, 73%)
 val WarningOrange = Color(0xFFFCD34D)     // hsl(32, 100%, 78%)
-val MutedNeutral = Color(0xFFF5F5FA)      // hsl(240, 20%, 96%)
+val MutedNeutral = Color(0xFFF5F5FA)
+val LightGray = Color(0xFFC2C2C2)      // hsl(240, 20%, 96%)
+// hsl(240, 20%, 96%)
 val BorderNeutral = Color(0xFFE6E6F2)     // hsl(240, 20%, 92%)
 
 // --- Notification Colors ---
@@ -64,6 +66,12 @@ val GradientBackground = Brush.linearGradient(
     ),
     start = Offset(0f, 0f),
     end = Offset(0f, 1f)
+)
+val BackgroundColor = Brush.verticalGradient(
+    colors = listOf(
+        Color(0xFFFBFBFE),
+        Color(0xFFFFC0A8)
+    )
 )
 
 val CardBackground = Color(0x99FFFFFF) // White @ 60% opacity

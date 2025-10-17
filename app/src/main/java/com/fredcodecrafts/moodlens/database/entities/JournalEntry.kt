@@ -9,6 +9,6 @@ data class JournalEntry(
     val userId: String,
     val mood: String, // happy, sad, anxious, calm, excited, tired
     val timestamp: Long,
-    val location: String? = null // 🆕 optional field for city, coordinates, etc.
-
+    val location: String? = null, // 🆕 optional field for city, coordinates, etc.
+    val aiReflection : String? = null
 )
