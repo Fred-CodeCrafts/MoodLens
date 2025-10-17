@@ -61,7 +61,7 @@ fun MainMenuScreen(
 
     val dailyScans = moodStat?.dailyScans ?: 0
     val weekStreak = moodStat?.weekStreak ?: 0
-    val canAccessInsights = moodStat?.canAccessInsights ?: false
+    val canAccessInsights = moodStat?.canAccessInsights ?: true
 
     Column(
         modifier = Modifier
@@ -154,7 +154,7 @@ fun MainMenuScreen(
                 title = "Insights",
                 description = "Mood patterns & analytics",
                 iconPainter = painterResource(R.drawable.ic_chart), // 🔥 custom flame icon
-                onClick = { navController.navigate("Insights") },
+                onClick = { navController.navigate(Screen.Insights.route) },
                 gradient = GradientWarm,
                 available = canAccessInsights
             )
@@ -193,6 +193,16 @@ fun MainMenuScreen(
             color = TextSecondary,
             textAlign = TextAlign.Center,
             fontSize = MaterialTheme.typography.bodySmall.fontSize
+        )
+        // TEMPORARY TESTING BUTTON - REMOVE LATER
+        Spacer(modifier = Modifier.height(16.dp))
+        AppButton(
+            text = "TEST - Go to Insights",
+            onClick = { navController.navigate(Screen.Insights.route) },
+            modifier = Modifier
+                .fillMaxWidth(),
+            containerColor = Color.Red, // Make it stand out
+            contentColor = Color.White
         )
     }
 }
