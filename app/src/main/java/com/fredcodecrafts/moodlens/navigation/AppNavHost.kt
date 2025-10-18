@@ -10,6 +10,10 @@ import androidx.navigation.navArgument
 import com.fredcodecrafts.moodlens.database.AppDatabase
 import com.fredcodecrafts.moodlens.ui.screens.*
 import com.fredcodecrafts.moodlens.login.LoginScreen
+import androidx.compose.ui.platform.LocalContext // <-- Pastikan import ini ada
+import com.fredcodecrafts.moodlens.utils.NotificationState
+import com.fredcodecrafts.moodlens.utils.NotificationData
+import com.fredcodecrafts.moodlens.utils.NotificationType
 
 @Composable
 fun AppNavHost(
@@ -76,15 +80,22 @@ fun AppNavHost(
             ReflectionScreen(
                 entryId = entryId,
                 currentMood = currentMood,
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
+                onNavigateBack = { navController.popBackStack() },
+                // 3. Modify the onReflection callback
                 onReflection = { reflection ->
-                    // Save reflection to database or handle as needed
-                    // You would typically use a ViewModel/Repository here to update the database
+                    // Optional: Save reflection logic here or pass it up further
                     println("AI Reflection saved: $reflection")
 
-                    // Navigate back to Journal/Home after saving
+                    // ✅ TRIGGER NOTIFICATION HERE
+                    notificationState.showNotification(
+                        NotificationData(
+                            message = "Your reflection is successfully saved",
+                            type = NotificationType.SUCCESS,
+                            duration = 3000L // Show for 3 seconds
+                        )
+                    )
+
+                    // Navigate back *after* triggering notification
                     navController.popBackStack()
                 }
             )
