@@ -13,6 +13,13 @@ import com.fredcodecrafts.moodlens.database.PreloadedQuestions
 import com.fredcodecrafts.moodlens.navigation.AppNavHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import com.fredcodecrafts.moodlens.ui.theme.MoodLensTheme // ✅ Import Tema kamu
+import com.fredcodecrafts.moodlens.utils.InAppNotification // ✅ Import komponen Notifikasi
+import com.fredcodecrafts.moodlens.utils.rememberNotificationState
+import androidx.compose.foundation.layout.Box // ✅ Import Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Alignment // ✅ Import Alignment
+import androidx.compose.ui.Modifier
 
 class MainActivity : ComponentActivity() {
 
