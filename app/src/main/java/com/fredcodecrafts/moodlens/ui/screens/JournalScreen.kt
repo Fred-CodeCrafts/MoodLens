@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import com.fredcodecrafts.moodlens.ui.theme.GradientPrimary
 import androidx.compose.ui.res.painterResource // ✅ Jangan lupa import ini
 import com.fredcodecrafts.moodlens.R
 import androidx.compose.material3.*
@@ -46,6 +47,8 @@ import java.util.*
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.ui.graphics.graphicsLayer
 
 
 private fun formatTimestampToDate(timestamp: Long): String {
@@ -84,7 +87,8 @@ private fun getEmojiForMood(mood: String): String = when (mood.lowercase()) {
 @Composable
 fun JournalScreen(
     navController: NavController,
-    // Context dan userId tidak lagi diperlukan di sini
+    context: Context,
+    userId: String = "default_user"
 ) {
     var entryToDelete by remember { mutableStateOf<JournalEntry?>(null) }
 
@@ -100,23 +104,45 @@ fun JournalScreen(
             )
         )
     }
+    val db = AppDatabase.getDatabase(context)
+    val journalDao = db.journalDao()
+    val notesDao = db.notesDao()
     var selectedEntryId by remember { mutableStateOf<String?>(null) }
     var isAddingNote by remember { mutableStateOf(false) }
     var noteText by remember { mutableStateOf("") }
     // ✅ FIX: isLoading tidak lagi diperlukan, selalu false.
     val isLoading by remember { mutableStateOf(false) }
     val latestEntry = entries.firstOrNull()
+    val scope = rememberCoroutineScope()
+
 
     // ✅ FIX: LaunchedEffect yang mengakses database DIHAPUS.
 
     // ✅ FIX: Fungsi onSaveNote sekarang HANYA mengubah state lokal.
     val onSaveNote: () -> Unit = {
         if (noteText.isNotBlank() && selectedEntryId != null) {
-            val newNote = Note("note_${System.currentTimeMillis()}", selectedEntryId!!, noteText)
+            val newNote = Note(
+                noteId = "note_${System.currentTimeMillis()}",
+                entryId = selectedEntryId!!,
+                content = noteText
+            )
+
+            // 1. Update UI state immediately for responsiveness
             val updatedNotes = notesMap[selectedEntryId]?.toMutableList() ?: mutableListOf()
             updatedNotes.add(newNote)
             notesMap = notesMap.toMutableMap().apply { put(selectedEntryId!!, updatedNotes) }
             stats = stats.copy(withNotes = notesMap.values.count { it.isNotEmpty() })
+
+            // 2. ✅ Save the new note to the database in the background
+            scope.launch(Dispatchers.IO) {
+                notesDao.insert(newNote)
+                // Optional: You could reload all data here, but updating
+                // the local state might be enough if LaunchedEffect reloads
+                // correctly when navigating back.
+                // withContext(Dispatchers.Main) { loadData() } // Example if you have loadData()
+            }
+
+            // 3. Reset input fields
             isAddingNote = false
             noteText = ""
         }
@@ -148,7 +174,7 @@ fun JournalScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        JournalHeader(onBackClick = { navController.navigateUp() })
+        JournalHeader( navController = navController )
 
         when {
             isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -163,8 +189,7 @@ fun JournalScreen(
                 // ✅ FIX: Semua konten sekarang berada di dalam LazyColumn
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    contentPadding = PaddingValues(start = 16.dp,end = 16.dp, bottom = 16.dp),
                 ) {
                     item {
                         StatsCard(stats = stats)
@@ -215,29 +240,42 @@ fun JournalScreen(
 // -- Supporting Composables --
 
 @Composable
-fun JournalHeader(onBackClick: () -> Unit) {
+fun JournalHeader(
+    navController: NavController) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
-            .padding(16.dp),
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
+        horizontalArrangement = Arrangement.Start
     ) {
-        IconButton(
-            onClick = onBackClick,
-            modifier = Modifier.align(Alignment.CenterVertically).offset(x = (-16).dp)
-        ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.Black)
+        // Back button navigates to Home
+        IconButton(onClick = {
+            navController.navigate(Screen.Home.route) {
+                popUpTo(Screen.Journal.route) { inclusive = true }
+            }
+        }) {
+            Icon(
+                imageVector = Icons.Default.ArrowBack,
+                contentDescription = "Back",
+                tint = Color(0xFF1A1A1A)
+            )
         }
-        Text(
-            text = "Mood Journal",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color.Black,
-            modifier = Modifier.weight(1f),
-            textAlign = TextAlign.Center
-        )
+
+        // Centered title
+        Box(
+            modifier = Modifier
+                .weight(1f),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Mood Journal",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontWeight = FontWeight.Bold
+                ),
+                color = Color(0xFF1A1A1A)
+            )
+        }
         Spacer(modifier = Modifier.width(48.dp))
     }
 }
@@ -246,8 +284,7 @@ fun JournalHeader(onBackClick: () -> Unit) {
 fun StatsCard(stats: JournalStats) {
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
+            .fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
@@ -334,6 +371,7 @@ fun JournalEntryCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(vertical = 8.dp)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -408,21 +446,20 @@ fun JournalEntryCard(
                         Text(
                             text = entry.location ?: "No location",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
+                            color = TextSecondary,
+//                            fontSize = 18.sp
                         )
                     }
                 }
 
                 if (notes.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     notes.forEach { note ->
                         NoteCard(noteText = note.content)
-                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
 
                 if (entry.aiReflection != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         ReflectionCard(reflectionText = entry.aiReflection)
                     }
@@ -475,7 +512,7 @@ fun AddNoteButton(onClick: () -> Unit) {
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(top = 12.dp),
         colors = ButtonDefaults.buttonColors(containerColor = Color.White), // ✅ White background
         shape = CircleShape
     ) {
@@ -544,15 +581,32 @@ fun AddNoteCard(
                 Button(
                     onClick = onSaveClick,
                     enabled = noteText.isNotBlank(),
+                    // 1. Buat warna asli Button menjadi transparan
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = GradientPrimary
-                            .let { Color.White } // For gradient background, you can wrap in Box if needed
+                        containerColor = Color.Transparent,
+                        // Atur warna teks agar kontras dengan gradient (misal: putih)
+                        contentColor = Color.White,
+                        // Atur warna saat disabled jika perlu (opsional)
+                        disabledContainerColor = Color.Transparent,
+                        disabledContentColor = Color.White.copy(alpha = 0.5f) // Teks jadi redup
                     ),
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        // 2. Gambar gradient di background modifier
+                        .background(
+                            brush = GradientPrimary,
+                            shape = RoundedCornerShape(8.dp) // Pastikan shape sama
+                        )
+                        // 3. (Opsional) Tambahkan efek visual saat disabled
+                        .then(
+                            if (!noteText.isNotBlank()) Modifier.graphicsLayer(alpha = 0.5f) else Modifier
+                        )
+
                 ) {
                     Text(
                         "Save",
-                        color = if (noteText.isNotBlank()) Color.White else Color.White.copy(alpha = 0.5f)
+                        // Warna teks sekarang diatur di ButtonDefaults.buttonColors
+                        // color = if (noteText.isNotBlank()) Color.White else Color.White.copy(alpha = 0.5f)
                     )
                 }
             }
@@ -611,54 +665,85 @@ fun ReflectionCard(
         }
     }
 }
-
+@Preview(showBackground = true)
+@Composable
+fun JournalEntryCardPreview() {
+    val dummyEntry = DummyData.journalEntries.first()
+    val dummyNotes = DummyData.notes.filter { it.entryId == dummyEntry.entryId }
+    MoodLensTheme {
+        JournalEntryCard(
+            entry = dummyEntry,
+            notes = dummyNotes,
+            onClick = {},
+            onLongClick = {}
+        )
+    }
+}
 @Preview(
     showBackground = true,
-    backgroundColor = 0xFFF0F2F5,
-    name = "Journal Screen Full Page Preview" // Beri nama agar mudah dikenali
+    backgroundColor = 0xFFF8F9FA, // Warna background sesuai Column utama
+    name = "Journal Screen Full Preview (Dummy Data)"
 )
 @Composable
 fun JournalScreenFullPreview() {
-    // 1. Siapkan semua data dummy yang dibutuhkan oleh layar
+    // 1. Siapkan semua state menggunakan DummyData
     val dummyEntries = DummyData.journalEntries
     val dummyNotesMap = DummyData.notes.groupBy { it.entryId }
     val dummyStats = JournalStats(
         totalEntries = dummyEntries.size,
-        withNotes = dummyNotesMap.keys.size,
+        withNotes = dummyNotesMap.filterValues { it.isNotEmpty() }.size,
         daysTracked = dummyEntries.map { formatTimestampToDate(it.timestamp) }.distinct().size
     )
+    val navController = rememberNavController() // NavController dummy untuk preview
 
-    // Preview tidak butuh NavController asli, cukup instance dummy
-    val navController = rememberNavController()
+    // State tambahan (opsional untuk preview, bisa diatur sesuai kebutuhan)
+    var selectedEntryId by remember { mutableStateOf<String?>(null) }
+    var isAddingNote by remember { mutableStateOf(false) }
+    var noteText by remember { mutableStateOf("") }
+    val latestEntry = dummyEntries.firstOrNull()
 
-    // 2. Bungkus dengan Tema aplikasi Anda
+    // 2. Bungkus dengan Tema Aplikasi Anda
     MoodLensTheme {
-        // 3. Buat ulang struktur UI JournalScreen di sini
-        Scaffold(
-            topBar = {
-                // Gunakan TopAppBar atau JournalHeader yang sudah Anda buat
-                JournalHeader(onBackClick = {})
-            }
-        ) { paddingValues ->
+        // 3. Bangun ulang struktur UI JournalScreen
+        Column(modifier = Modifier.fillMaxSize()) {
+            JournalHeader( navController = navController )
+
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp,end = 16.dp, bottom = 16.dp),
+                //verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 // Item 1: Kartu Statistik
                 item {
                     StatsCard(stats = dummyStats)
                 }
 
-                // Item 2: Daftar Entri Jurnal
-                items(dummyEntries) { entry ->
+                // Item 2: Tombol "Add Note" (jika kondisi terpenuhi)
+                if (latestEntry != null && dummyNotesMap[latestEntry.entryId].isNullOrEmpty() && !isAddingNote) {
+                    item {
+                        AddNoteButton(onClick = { /* Aksi kosong di preview */ })
+                    }
+                }
+
+                // Item 3: Kartu Input "Add Note" (jika isAddingNote true)
+                item {
+                    AnimatedVisibility(visible = isAddingNote) { // Atau set isAddingNote=true untuk melihatnya
+                        AddNoteCard(
+                            noteText = noteText,
+                            onNoteChange = { noteText = it },
+                            onSaveClick = { /* Aksi kosong */ },
+                            onCancelClick = { /* Aksi kosong */ }
+                        )
+                    }
+                }
+
+                // Item 4: Daftar Entri Jurnal
+                items(items = dummyEntries, key = { it.entryId }) { entry ->
                     JournalEntryCard(
                         entry = entry,
                         notes = dummyNotesMap[entry.entryId] ?: emptyList(),
-                        onClick = {}, // Aksi di preview tidak perlu diisi
-                        onLongClick = {}
+                        onClick = { /* Aksi kosong */ },
+                        onLongClick = { /* Aksi kosong */ }
                     )
                 }
             }
