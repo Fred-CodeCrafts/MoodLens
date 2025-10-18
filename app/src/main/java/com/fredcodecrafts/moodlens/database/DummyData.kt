@@ -54,7 +54,7 @@ object DummyData {
 
 
     val notes = listOf(
-        Note(noteId = "note1", entryId = "entry1", content = "Had a great workout!"),
+//        Note(noteId = "note1", entryId = "entry1", content = "Had a great workout!"),
         Note(noteId = "note2", entryId = "entry2", content = "Felt lonely today"),
         Note(noteId = "note3", entryId = "entry3", content = "I lost 5 pounds!!"),
         Note(noteId = "note4", entryId = "entry4", content = "Felt a bit tired and lonely today :/"),
