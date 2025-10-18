@@ -175,7 +175,7 @@ fun MainMenuScreen(
         // Quick Action Button
         AppButton(
             text = "Quick Mood Scan",
-            onClick = { navController.navigate("camera") },
+            onClick = { navController.navigate(Screen.CameraScan.route) },
             modifier = Modifier
                 .fillMaxWidth()
                 .slideUpAnimation(),
