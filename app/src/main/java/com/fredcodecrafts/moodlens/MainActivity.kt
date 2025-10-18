@@ -34,12 +34,28 @@ class MainActivity : ComponentActivity() {
 
         // Set up Compose UI with NavController and AppNavHost
         setContent {
-            val navController = rememberNavController()
-            Surface(color = MaterialTheme.colorScheme.background) {
-                AppNavHost(
-                    navController = navController,
-                    database = db
-                )
+            MoodLensTheme { // ✅ Bungkus semuanya dengan Tema kamu
+                val navController = rememberNavController()
+
+                // 1. Buat notification state di sini
+                val notificationState = rememberNotificationState()
+
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    // 2. Bungkus AppNavHost dengan Box
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        AppNavHost(
+                            navController = navController,
+                            database = db,
+                            notificationState = notificationState // <-- Kirim state ke NavHost
+                        )
+
+                        // 3. Tampilkan UI Notifikasi di atas segalanya
+                        InAppNotification(
+                            state = notificationState,
+                            modifier = Modifier.align(Alignment.TopCenter) // Atur posisi
+                        )
+                    }
+                }
             }
         }
     }
