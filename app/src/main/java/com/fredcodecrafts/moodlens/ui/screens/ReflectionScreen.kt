@@ -27,9 +27,12 @@ import com.fredcodecrafts.moodlens.components.InputField
 import com.fredcodecrafts.moodlens.database.PreloadedQuestions
 import com.fredcodecrafts.moodlens.database.entities.Message
 import com.fredcodecrafts.moodlens.database.entities.Question
+import com.fredcodecrafts.moodlens.ui.theme.GradientPrimary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.*
+import com.fredcodecrafts.moodlens.ui.theme.gradientPrimary
+
 
 // Data class for the reflection session
 data class ReflectionSession(
@@ -265,79 +268,86 @@ fun ReflectionScreen(
             onReflection(aiReflection)
         }
     }
-
-    Scaffold(
-        topBar = {
-            ReflectionTopBar(
-                progress = progress,
-                onBackClick = onNavigateBack,
-                currentQuestionNumber = currentQuestionIndex + 1,
-                totalQuestions = promptQuestions.size
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(BackgroundColor)
-        ) {
-            // Messages list
-            LazyColumn(
-                state = listState,
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(gradientPrimary())
+    ) {
+        Scaffold(
+            topBar = {
+                ReflectionTopBar(
+                    progress = progress,
+                    onBackClick = onNavigateBack,
+                    currentQuestionNumber = currentQuestionIndex + 1,
+                    totalQuestions = promptQuestions.size
+                )
+            }, containerColor = Color.Transparent
+        ) { paddingValues ->
+            Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(vertical = 16.dp)
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .background(Color.Transparent) // <-- make it transparent
+// your linear gradient
             ) {
-                items(messages) { message ->
-                    AnimatedVisibility(
-                        visible = true,
-                        enter = fadeIn() + slideInHorizontally()
-                    ) {
-                        ChatMessageBubble(message = message)
+                // Messages list
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(vertical = 16.dp)
+                ) {
+                    items(messages) { message ->
+                        AnimatedVisibility(
+                            visible = true,
+                            enter = fadeIn() + slideInHorizontally()
+                        ) {
+                            ChatMessageBubble(message = message)
+                        }
+                    }
+
+                    if (isTyping) {
+                        item {
+                            TypingIndicator()
+                        }
                     }
                 }
 
-                if (isTyping) {
-                    item {
-                        TypingIndicator()
-                    }
-                }
-            }
-
-            // Input area
-            when {
-                showSummary -> {
-                    ReflectionSummary(
-                        session = session,
-                        onDone = onNavigateBack
-                    )
-                }
-                showAdditionalNotes -> {
-                    AdditionalNotesInput(
-                        notes = additionalNotes,
-                        onNotesChange = { additionalNotes = it },
-                        onSkip = { completeReflection(false) },
-                        onSave = { completeReflection(true) }
-                    )
-                }
-                else -> {
-                    ReflectionInputArea(
-                        currentResponse = currentResponse,
-                        onResponseChange = { currentResponse = it },
-                        onSend = ::handleSendResponse,
-                        placeholder = getPlaceholderForQuestion(
-                            promptQuestions.getOrNull(currentQuestionIndex)
+                // Input area
+                when {
+                    showSummary -> {
+                        ReflectionSummary(
+                            session = session,
+                            onDone = onNavigateBack
                         )
-                    )
+                    }
+
+                    showAdditionalNotes -> {
+                        AdditionalNotesInput(
+                            notes = additionalNotes,
+                            onNotesChange = { additionalNotes = it },
+                            onSkip = { completeReflection(false) },
+                            onSave = { completeReflection(true) }
+                        )
+                    }
+
+                    else -> {
+                        ReflectionInputArea(
+                            currentResponse = currentResponse,
+                            onResponseChange = { currentResponse = it },
+                            onSend = ::handleSendResponse,
+                            placeholder = getPlaceholderForQuestion(
+                                promptQuestions.getOrNull(currentQuestionIndex)
+                            )
+                        )
+                    }
                 }
             }
         }
     }
 }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReflectionTopBar(
@@ -349,12 +359,27 @@ private fun ReflectionTopBar(
     Column {
         TopAppBar(
             title = {
-                Column {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Heart icon on top
+                    Icon(
+                        imageVector = Icons.Default.Favorite,
+                        contentDescription = "Heart",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Reflection session title
                     Text(
                         "Reflection Session",
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
+
                     if (totalQuestions > 0) {
                         Text(
                             "Question $currentQuestionNumber of $totalQuestions",
@@ -370,13 +395,13 @@ private fun ReflectionTopBar(
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MainPurple
+                containerColor = Color.Transparent
             )
         )
 
         // Progress bar
         LinearProgressIndicator(
-            progress = { progress },
+            progress = progress,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(3.dp),
@@ -385,6 +410,7 @@ private fun ReflectionTopBar(
         )
     }
 }
+
 
 @Composable
 private fun ReflectionInputArea(
@@ -395,7 +421,7 @@ private fun ReflectionInputArea(
 ) {
     Surface(
         shadowElevation = 8.dp,
-        color = MaterialTheme.colorScheme.surface
+        color = Color.Transparent
     ) {
         Column(
             modifier = Modifier

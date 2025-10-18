@@ -36,7 +36,6 @@ import com.fredcodecrafts.moodlens.database.AppDatabase
 import com.fredcodecrafts.moodlens.database.DummyData
 import com.fredcodecrafts.moodlens.database.entities.JournalEntry
 import com.fredcodecrafts.moodlens.database.entities.Note
-import com.fredcodecrafts.moodlens.model.JournalStats
 import com.fredcodecrafts.moodlens.navigation.Screen
 import com.fredcodecrafts.moodlens.ui.theme.*
 import kotlinx.coroutines.Dispatchers
@@ -46,6 +45,8 @@ import java.text.SimpleDateFormat
 import java.util.*
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.BorderStroke
+
 
 private fun formatTimestampToDate(timestamp: Long): String {
     val entryCalendar = Calendar.getInstance().apply { timeInMillis = timestamp }
@@ -333,10 +334,9 @@ fun JournalEntryCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            //.padding(horizontal = 16.dp, vertical = 8.dp) // Padding dikontrol oleh LazyColumn
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = Color.White), // ✅ FIX: Beri warna solid
+        colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
@@ -345,12 +345,21 @@ fun JournalEntryCard(
             verticalAlignment = Alignment.Top
         ) {
             Box(
-                modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFFF3E8FF)), // Warna lebih soft
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(
+                        brush = Brush.linearGradient(
+                            listOf(LightPurple, MainPurple),
+                            start = Offset(0f, 0f),
+                            end = Offset(100f, 100f)
+                        )
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(text = getEmojiForMood(entry.mood), fontSize = 24.sp)
             }
-            // ✅ FIX: Weight diubah menjadi 1f agar mengisi sisa ruang
+
             Column(modifier = Modifier.weight(1f)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -359,42 +368,49 @@ fun JournalEntryCard(
                 ) {
                     Card(
                         shape = RoundedCornerShape(50.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF3E8FF)), // Warna disamakan
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF3E8FF)),
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
                         Text(
                             text = entry.mood.replaceFirstChar { it.uppercase() },
-                            style = MaterialTheme.typography.labelLarge, // Style lebih pas
+                            style = MaterialTheme.typography.labelLarge,
                             color = MainPurple,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                         )
                     }
                     Text(
                         text = formatTimestampToTime(entry.timestamp),
-                        style = MaterialTheme.typography.bodyMedium, color = TextSecondary
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
                     )
                 }
+
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = formatTimestampToDate(entry.timestamp),
-                    style = MaterialTheme.typography.titleMedium, // Ukuran lebih besar agar jelas
-                    color = TextPrimary,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                // ✅ FIX: Ganti emoji dengan Icon
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.location), // Call the XML file
-                        contentDescription = "Location",
-                        tint = TextSecondary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Text(
-                        text = entry.location ?: "No location", // Handle jika lokasi null
-                        style = MaterialTheme.typography.bodyMedium, color = TextSecondary
+                        text = formatTimestampToDate(entry.timestamp),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = TextPrimary,
+                        fontWeight = FontWeight.SemiBold
                     )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.location),
+                            contentDescription = "Location",
+                            tint = TextSecondary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = entry.location ?: "No location",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextSecondary
+                        )
+                    }
                 }
 
                 if (notes.isNotEmpty()) {
@@ -404,9 +420,12 @@ fun JournalEntryCard(
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
+
                 if (entry.aiReflection != null) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    ReflectionCard(reflectionText = entry.aiReflection)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ReflectionCard(reflectionText = entry.aiReflection)
+                    }
                 }
             }
         }
@@ -416,29 +435,22 @@ fun JournalEntryCard(
 @Composable
 fun NoteCard(noteText: String) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth(),
-        // Gunakan shape dan warna yang lebih lembut
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = LightGray // Warna abu-abu keunguan yang sangat terang
+            containerColor = Color(0x449E86A1) // 258,15%,55% in HSL-ish approximation
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            // --- HEADER ---
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // ✅ TAMBAHKAN ICON DI SINI
                 Icon(
-                    // Ganti R.drawable.ic_note_bubble dengan nama file XML Anda
                     painter = painterResource(id = R.drawable.bubblechat),
                     contentDescription = "Your Note",
-                    tint = TextSecondary, // Warna abu-abu untuk header
+                    tint = TextSecondary,
                     modifier = Modifier.size(18.dp)
                 )
-
                 Spacer(modifier = Modifier.width(8.dp))
-
                 Text(
                     text = "Your note",
                     style = MaterialTheme.typography.labelMedium,
@@ -447,13 +459,10 @@ fun NoteCard(noteText: String) {
                     fontSize = 14.sp
                 )
             }
-
             Spacer(modifier = Modifier.height(8.dp))
-
-            // --- KONTEN CATATAN ---
             Text(
                 text = noteText,
-                style = MaterialTheme.typography.bodyMedium, // Style untuk konten utama
+                style = MaterialTheme.typography.bodyMedium,
                 color = TextPrimary
             )
         }
@@ -465,26 +474,30 @@ fun AddNoteButton(onClick: () -> Unit) {
     Button(
         onClick = onClick,
         modifier = Modifier
-            .fillMaxWidth()                             // buat selebar kartu
+            .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = MainPurple),
+        colors = ButtonDefaults.buttonColors(containerColor = Color.White), // ✅ White background
         shape = CircleShape
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),         // isi row juga full
-            horizontalArrangement = Arrangement.Center, // ikon+teks di tengah
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center // ikon + teks di tengah
         ) {
             Icon(
                 imageVector = Icons.Default.Add,
                 contentDescription = "Add Note to Your Lastest Mood",
-                tint = Color.White
+                tint = Color.Black // ✅ Black icon
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Add Note", color = Color.White)
+            Text(
+                text = "Add Note to Your Lastest Mood",
+                color = Color.Black // ✅ Black text
+            )
         }
     }
 }
+
 
 @Composable
 fun AddNoteCard(
@@ -498,7 +511,8 @@ fun AddNoteCard(
             .fillMaxWidth()
             .padding(16.dp),
         shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -519,16 +533,27 @@ fun AddNoteCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
-                TextButton(onClick = onCancelClick) {
+                OutlinedButton(
+                    onClick = onCancelClick,
+                    border = BorderStroke(1.dp, Color.Gray),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
                     Text("Cancel", color = Color.Gray)
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(
                     onClick = onSaveClick,
-                    colors = ButtonDefaults.buttonColors(containerColor = MainPurple),
+                    enabled = noteText.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = GradientPrimary
+                            .let { Color.White } // For gradient background, you can wrap in Box if needed
+                    ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("Save", color = Color.White)
+                    Text(
+                        "Save",
+                        color = if (noteText.isNotBlank()) Color.White else Color.White.copy(alpha = 0.5f)
+                    )
                 }
             }
         }
@@ -640,3 +665,9 @@ fun JournalScreenFullPreview() {
         }
     }
 }
+
+data class JournalStats(
+    val totalEntries: Int = 0,
+    val withNotes: Int = 0,
+    val daysTracked: Int = 0
+)

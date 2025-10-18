@@ -40,7 +40,6 @@ fun AppButton(
     shape: CornerBasedShape? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-
     val buttonShape = shape ?: RoundedCornerShape(12.dp)
 
     val content: @Composable RowScope.() -> Unit = {
@@ -77,39 +76,45 @@ fun AppButton(
                 .height(size.height.dp)
         ) { content() }
 
-        else -> Button(
-            onClick = onClick,
-            enabled = enabled,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.Transparent,
-                contentColor = contentColor ?: MaterialTheme.colorScheme.onPrimary
-            ),
-            interactionSource = interactionSource,
-            shape = buttonShape,
-            modifier = modifier
-                .padding(horizontal = 8.dp)
-                .height(size.height.dp)
-                .background(
-                    brush = when (variant) {
-                        ButtonVariant.Default -> GradientPrimary
-                        ButtonVariant.Secondary -> Brush.linearGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.secondary,
-                                MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f)
-                            )
-                        )
-                        ButtonVariant.Destructive -> Brush.linearGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.error,
-                                MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
-                            )
-                        )
-                        else -> Brush.linearGradient(
-                            listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primary)
-                        )
-                    },
-                    shape = buttonShape
-                )
-        ) { content() }
+        else -> {
+            // Wrap Button in a Box so gradient or solid background becomes the *actual* surface
+            Box(
+                modifier = modifier
+                    .padding(horizontal = 8.dp)
+                    .height(size.height.dp)
+                    .background(
+                        when {
+                            containerColor != null -> containerColor
+                            else -> when (variant) {
+                                ButtonVariant.Default -> Color.Transparent // will be overridden by GradientPrimary below
+                                ButtonVariant.Secondary -> MaterialTheme.colorScheme.secondary
+                                ButtonVariant.Destructive -> MaterialTheme.colorScheme.error
+                                else -> MaterialTheme.colorScheme.primary
+                            }
+                        },
+                        shape = buttonShape
+                    )
+                    .then(
+                        if (containerColor == null && variant == ButtonVariant.Default)
+                            Modifier.background(GradientPrimary, shape = buttonShape)
+                        else Modifier
+                    )
+            ) {
+                Button(
+                    onClick = onClick,
+                    enabled = enabled,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Transparent,
+                        contentColor = contentColor ?: MaterialTheme.colorScheme.onPrimary,
+                        disabledContainerColor = Color.Transparent,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    ),
+                    interactionSource = interactionSource,
+                    shape = buttonShape,
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) { content() }
+            }
+        }
     }
 }

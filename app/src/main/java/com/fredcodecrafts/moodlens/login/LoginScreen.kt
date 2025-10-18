@@ -17,21 +17,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.fredcodecrafts.moodlens.R
 import com.fredcodecrafts.moodlens.components.AppButton
 import com.fredcodecrafts.moodlens.components.AppCard
-import com.fredcodecrafts.moodlens.components.ButtonVariant
-import com.fredcodecrafts.moodlens.ui.theme.gradientPrimary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.draw.rotate
-import com.fredcodecrafts.moodlens.R
-
+import com.fredcodecrafts.moodlens.ui.theme.gradientPrimary
 
 @Composable
 fun LoginScreen(
@@ -42,19 +39,20 @@ fun LoginScreen(
     val scope = rememberCoroutineScope()
 
     // Rotation animation for spinner
-    val infiniteTransition = rememberInfiniteTransition()
+    val infiniteTransition = rememberInfiniteTransition(label = "spinner_rotation")
     val rotation by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
             animation = tween(800, easing = LinearEasing)
-        )
+        ),
+        label = "rotation_anim"
     )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(brush = gradientPrimary()),
+            .background(brush = gradientPrimary()), // <-- call the composable
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -135,7 +133,6 @@ fun LoginScreen(
                         modifier = Modifier.fillMaxWidth(),
                         leadingIcon = {
                             if (isLoading) {
-                                // Spinner in primary color
                                 CircularProgressIndicator(
                                     color = MaterialTheme.colorScheme.primary,
                                     strokeWidth = 3.dp,
@@ -145,7 +142,6 @@ fun LoginScreen(
                                 )
                                 Spacer(Modifier.width(12.dp))
                             } else {
-                                // Google logo
                                 Image(
                                     painter = painterResource(id = R.drawable.ic_google),
                                     contentDescription = "Google Logo",
@@ -154,9 +150,9 @@ fun LoginScreen(
                                 Spacer(Modifier.width(12.dp))
                             }
                         },
-                        containerColor = Color.White,   // always white
-                        contentColor = Color.Black,     // text black
-                        shape = RoundedCornerShape(12.dp) // cute rounded corners
+                        containerColor = Color.White,
+                        contentColor = Color.Black,
+                        shape = RoundedCornerShape(12.dp)
                     )
 
                     Spacer(Modifier.height(16.dp))
