@@ -68,79 +68,75 @@ fun CameraPreviewPlaceholder() {
         }
     }
 }
-
 @Composable
 fun MoodScanHeader(navController: NavHostController) {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(horizontal = 24.dp, vertical = 16.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(64.dp)
-                .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(Color(0xFF7B3FE4), Color(0xFFBB6BD9))
-                    ),
-                    shape = CircleShape
-                )
-                .shadow(8.dp, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Star,
-                contentDescription = "Sparkles",
-                tint = Color.White,
-                modifier = Modifier.size(32.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "MoodLens",
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontWeight = FontWeight.Bold,
-                brush = Brush.linearGradient(
-                    colors = listOf(Color(0xFF7B3FE4), Color(0xFFBB6BD9))
-                )
-            ),
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
-
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Let's check in with how you're feeling today",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.Gray,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
+        // Home button top-left
         IconButton(
             onClick = { navController.navigateUp() },
-            modifier = Modifier
-                .size(48.dp)
-                .background(
+            modifier = Modifier.align(Alignment.TopStart)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .background(
+                        brush = Brush.linearGradient(listOf(Color(0xFF7B3FE4), Color(0xFFBB6BD9))),
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.lc_home_svg),
+                    contentDescription = "Heart",
+                    tint = Color.White.copy(alpha = 0f), // make icon itself invisible
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+        }
+
+        // Header content centered
+        Column(
+            modifier = Modifier.align(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Sparkles icon
+            Icon(
+                painter = painterResource(id = R.drawable.heart),
+                contentDescription = "Sparkles",
+                modifier = Modifier.size(48.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // MoodLens title with gradient text
+            Text(
+                text = "MoodLens",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontWeight = FontWeight.Bold,
                     brush = Brush.linearGradient(
                         colors = listOf(Color(0xFF7B3FE4), Color(0xFFBB6BD9))
-                    ),
-                    shape = CircleShape
+                    )
                 )
-        ) {
-            Icon(
-                imageVector = Icons.Default.Home,
-                contentDescription = "Home",
-                tint = Color.White
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Subtitle
+            Text(
+                text = "Let's check in with how you're feeling today",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Gray,
+                textAlign = TextAlign.Center
             )
         }
     }
 }
+
 
 @Composable
 fun MoodCameraCard(
