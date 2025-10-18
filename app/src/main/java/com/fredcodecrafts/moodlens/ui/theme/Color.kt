@@ -23,6 +23,9 @@ val MutedNeutral = Color(0xFFF5F5FA)
 val LightGray = Color(0xFFC2C2C2)      // hsl(240, 20%, 96%)
 // hsl(240, 20%, 96%)
 val BorderNeutral = Color(0xFFE6E6F2)     // hsl(240, 20%, 92%)
+val BubbleChatColor = Color.White.copy(alpha = 0.08f)
+val BubbleChatBorderColor = Color.White.copy(alpha = 0.15f)
+val BubbleChatUserColor = MainPurple.copy(alpha = 0.08f)
 
 // --- Notification Colors ---
 val NotificationSuccess = SuccessGreen  // Green
