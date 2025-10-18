@@ -32,6 +32,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.*
 import com.fredcodecrafts.moodlens.ui.theme.gradientPrimary
+import androidx.compose.material.icons.automirrored.filled.ArrowBack // Use AutoMirrored for back arrow
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.dp
 
 
 // Data class for the reflection session
@@ -271,7 +276,7 @@ fun ReflectionScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(gradientPrimary())
+            .background(gradientPrimary()),
     ) {
         Scaffold(
             topBar = {
@@ -348,7 +353,6 @@ fun ReflectionScreen(
         }
     }
 }
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReflectionTopBar(
     progress: Float,
@@ -356,59 +360,70 @@ private fun ReflectionTopBar(
     currentQuestionNumber: Int,
     totalQuestions: Int
 ) {
-    Column {
-        TopAppBar(
-            title = {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    // Heart icon on top
-                    Icon(
-                        imageVector = Icons.Default.Favorite,
-                        contentDescription = "Heart",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // Reflection session title
-                    Text(
-                        "Reflection Session",
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-
-                    if (totalQuestions > 0) {
-                        Text(
-                            "Question $currentQuestionNumber of $totalQuestions",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.8f)
-                        )
-                    }
-                }
-            },
-            navigationIcon = {
-                IconButton(onClick = onBackClick) {
-                    Icon(Icons.Default.ArrowBack, "Back", tint = Color.White)
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = Color.Transparent
-            )
-        )
-
-        // Progress bar
-        LinearProgressIndicator(
-            progress = progress,
+    // 1. Use Column as the main container for the header + progress bar
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            // Add padding for status bar if needed, and bottom padding
+            .padding(top = 8.dp, bottom = 0.dp) // No bottom padding here, progress bar handles it
+    ) {
+        // 2. Use Box to align back button and centered content
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(3.dp),
-            color = AccentPink,
-            trackColor = MainPurple.copy(alpha = 0.3f)
-        )
-    }
+                .height(IntrinsicSize.Min) // Adjust height based on content
+                .padding(horizontal = 4.dp, vertical = 4.dp) // Padding around the content
+        ) {
+            // Back Button
+            IconButton(
+                onClick = onBackClick,
+                modifier = Modifier.align(Alignment.CenterStart)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = Color.White
+                )
+            }
+
+            // Centered Content (Heart, Title, Subtitle)
+            Column(
+                modifier = Modifier.align(Alignment.Center), // Center this column within the Box
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Favorite,
+                    contentDescription = "Heart",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Reflection Session",
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                if (totalQuestions > 0) {
+                    Text(
+                        text = "Question $currentQuestionNumber of $totalQuestions",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.8f)
+                    )
+                }
+            }
+        } // End of Box
+
+        // 3. Place Progress Bar *below* the Box
+//        LinearProgressIndicator(
+//            progress = { progress }, // Use lambda syntax for progress
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .height(6.dp),
+//            color = AccentPink,
+//            trackColor = MainPurple.copy(alpha = 0.3f) // Ensure track color contrasts slightly
+//        )
+    } // End of Column
 }
 
 
@@ -419,32 +434,38 @@ private fun ReflectionInputArea(
     onSend: () -> Unit,
     placeholder: String
 ) {
-    Surface(
-        shadowElevation = 8.dp,
-        color = Color.Transparent
-    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(16.dp),
+            // ✅ Atur alignment Column jika perlu (misal: CenterHorizontally)
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(
-                verticalAlignment = Alignment.Bottom,
+                verticalAlignment = Alignment.Bottom, // Jaga agar TextField dan Button rata bawah
                 modifier = Modifier.fillMaxWidth()
             ) {
                 OutlinedTextField(
                     value = currentResponse,
                     onValueChange = onResponseChange,
                     placeholder = {
-                        Text(placeholder, color = Color.Gray)
+                        Text(placeholder, color = Color.White)
                     },
                     modifier = Modifier
-                        .weight(1f)
+                        .weight(1f) // Biarkan TextField mengisi sisa ruang
                         .padding(end = 8.dp),
                     shape = RoundedCornerShape(24.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MainPurple,
-                        unfocusedBorderColor = Color.Gray.copy(alpha = 0.3f)
+                        focusedBorderColor = Color.White,
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
+                        // ✅ Tambahkan textColor di sini
+                        focusedTextColor = Color.White, // Warna teks saat fokus
+                        unfocusedTextColor = Color.White // Warna teks saat tidak fokus
+                        // Mungkin perlu atur warna text color lain (cursor, dll)
+                        // cursorColor = Color.White,
+                        // focusedLabelColor = Color.White,
+                        // unfocusedLabelColor = Color.White.copy(alpha=0.7f)
+
                     ),
                     maxLines = 4
                 )
@@ -457,7 +478,8 @@ private fun ReflectionInputArea(
                         contentColor = Color.White,
                         disabledContainerColor = Color.Gray.copy(alpha = 0.3f),
                         disabledContentColor = Color.White
-                    )
+                    ),
+                    modifier = Modifier.size(48.dp) // Beri ukuran tetap agar bentuknya konsisten
                 ) {
                     Icon(Icons.Default.Send, contentDescription = "Send")
                 }
@@ -466,14 +488,13 @@ private fun ReflectionInputArea(
             Text(
                 text = "💜 Your thoughts are safe and valued",
                 fontSize = 12.sp,
-                color = Color.Gray,
+                color = Color.White,
                 modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
+                    // .align(Alignment.CenterHorizontally) // Tidak perlu karena Column sudah diatur
                     .padding(top = 8.dp)
             )
         }
     }
-}
 
 @Composable
 private fun AdditionalNotesInput(
