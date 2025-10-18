@@ -35,6 +35,10 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import com.fredcodecrafts.moodlens.navigation.Screen
+
+
+val purpleColor = Color(0xFF7B3FE4) // your purple
 
 
 @Composable
@@ -80,22 +84,11 @@ fun MoodScanHeader(navController: NavHostController) {
             onClick = { navController.navigateUp() },
             modifier = Modifier.align(Alignment.TopStart)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .background(
-                        brush = Brush.linearGradient(listOf(Color(0xFF7B3FE4), Color(0xFFBB6BD9))),
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.lc_home_svg),
-                    contentDescription = "Heart",
-                    tint = Color.White.copy(alpha = 0f), // make icon itself invisible
-                    modifier = Modifier.size(24.dp)
-                )
-            }
+            Icon(
+                painter = painterResource(id = R.drawable.lc_home_svg),
+                contentDescription = "home",
+                tint = purpleColor
+            )
 
         }
 
@@ -105,11 +98,26 @@ fun MoodScanHeader(navController: NavHostController) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Sparkles icon
-            Icon(
-                painter = painterResource(id = R.drawable.heart),
-                contentDescription = "Sparkles",
-                modifier = Modifier.size(48.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(Color(0xFF7B3FE4), Color(0xFFBB6BD9)) // Gradient purple
+                        ),
+                        shape = CircleShape
+                    )
+                    .shadow(8.dp, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.heart),
+                    contentDescription = "Heart",
+                    tint = Color.White, // Icon color is white
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -137,7 +145,6 @@ fun MoodScanHeader(navController: NavHostController) {
     }
 }
 
-
 @Composable
 fun MoodCameraCard(
     isScanning: Boolean,
@@ -151,8 +158,7 @@ fun MoodCameraCard(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(1f)
-            .padding(16.dp)
-            .shadow(8.dp, RoundedCornerShape(24.dp)),
+            .padding(16.dp), // ✅ Shadow removed
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
@@ -234,11 +240,12 @@ fun MoodCameraCard(
     }
 }
 
+
 @Composable
 fun MoodResultSection(
     mood: String,
     onContinue: () -> Unit,
-    onTalkToAi: () -> Unit
+    onReflect: () -> Unit
 ) {
     val moodEmojis = mapOf(
         "happy" to "😊",
@@ -256,14 +263,11 @@ fun MoodResultSection(
         "excited" to "You look excited today! Amazing energy! ⚡",
         "tired" to "You look tired today. Rest is important 🌙"
     )
-
     val moodGradient = when (mood) {
-        "happy" -> Brush.linearGradient(listOf(Color(0xFFFFB300), Color(0xFFFF8A00)))
-        "sad" -> Brush.linearGradient(listOf(Color(0xFF4E54C8), Color(0xFF8F94FB)))
+        "happy", "excited" -> Brush.linearGradient(listOf(Color(0xFFFFB300), Color(0xFFFF8A00)))
+        "sad", "tired" -> Brush.linearGradient(listOf(Color(0xFF4E54C8), Color(0xFF8F94FB)))
         "anxious" -> Brush.linearGradient(listOf(Color(0xFF7B3FE4), Color(0xFFBB6BD9)))
         "calm" -> Brush.linearGradient(listOf(Color(0xFF00C6FF), Color(0xFF0072FF)))
-        "excited" -> Brush.linearGradient(listOf(Color(0xFFFFB300), Color(0xFFFF8A00)))
-        "tired" -> Brush.linearGradient(listOf(Color(0xFF4E54C8), Color(0xFF8F94FB)))
         else -> Brush.linearGradient(listOf(Color(0xFF7B3FE4), Color(0xFFBB6BD9)))
     }
 
@@ -271,54 +275,63 @@ fun MoodResultSection(
         modifier = Modifier
             .fillMaxSize()
             .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 24.dp)
-                .shadow(8.dp, RoundedCornerShape(24.dp)),
-            colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+        // Mood Card
+        // Mood Card centered
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
+            Card(
                 modifier = Modifier
-                    .background(moodGradient, RoundedCornerShape(24.dp))
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth(0.9f) // 90% of screen width
+                    .padding(bottom = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = moodEmojis[mood] ?: "😐",
-                        fontSize = 48.sp,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-                    Text(
-                        text = "Mood Detected",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = moodMessages[mood] ?: "",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.9f),
-                        textAlign = TextAlign.Center
-                    )
+                Box(
+                    modifier = Modifier
+                        .background(moodGradient, RoundedCornerShape(24.dp))
+                        .padding(32.dp)
+                        .fillMaxWidth(), // <-- make inner Box take full width
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(), // <-- full width
+                        horizontalAlignment = Alignment.CenterHorizontally // <-- center content
+                    ) {
+                        Text(
+                            text = moodEmojis[mood] ?: "😐",
+                            fontSize = 48.sp,
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
+                        Text(
+                            text = "Mood Detected",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = moodMessages[mood] ?: "",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White.copy(alpha = 0.9f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         }
 
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        )
-        {
+
+
+        // Mood Added Confirmation
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .background(Color(0xFF4CAF50), CircleShape)
-                    .padding(8.dp),
+                    .background(Color(0xFF4CAF50), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -343,17 +356,18 @@ fun MoodResultSection(
             modifier = Modifier.fillMaxWidth(0.9f)
         ) {
             Button(
-                onClick = onTalkToAi,
+                onClick = onReflect,
                 colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.9f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.message), // <-- custom heart XML
-                    contentDescription = "Heart",
-                    modifier = Modifier.size(24.dp)
+                Icon(
+                    painter = painterResource(id = R.drawable.message), // your custom message icon
+                    contentDescription = "Talk to AI",
+                    modifier = Modifier.size(24.dp),
+                    tint = Color.Black
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(text = "Talk to AI Companion")
+                Text(text = "Let's Reflect Together", color = Color.Black)
             }
 
             Button(
@@ -372,7 +386,6 @@ fun MoodResultSection(
         }
 
         // Encouragement Text
-        Spacer(modifier = Modifier.height(24.dp))
         Text(
             text = "Remember, all feelings are valid. You're doing great by checking in with yourself! 💜",
             style = MaterialTheme.typography.bodySmall,
@@ -449,10 +462,9 @@ fun CameraScanScreen(navController: NavHostController) {
     val notificationState = rememberNotificationState()
     var detectedEmotion by remember { mutableStateOf<String?>(null) }
     var isAnalyzing by remember { mutableStateOf(false) }
-    var showCameraPreview by remember { mutableStateOf(true) }
     var scanProgress by remember { mutableStateOf(0f) }
-    var shouldSaveResult by remember { mutableStateOf(false) }
 
+    // Simulate scanning
     LaunchedEffect(isAnalyzing) {
         if (isAnalyzing) {
             scanProgress = 0f
@@ -471,7 +483,6 @@ fun CameraScanScreen(navController: NavHostController) {
             }
             detectedEmotion = emotions
             isAnalyzing = false
-            showCameraPreview = false
 
             notificationState.showNotification(
                 com.fredcodecrafts.moodlens.utils.NotificationData(
@@ -484,35 +495,52 @@ fun CameraScanScreen(navController: NavHostController) {
         }
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        contentAlignment = Alignment.TopCenter
     ) {
-        MoodScanHeader(navController = navController)
-        MoodCameraCard(
-            isScanning = isAnalyzing,
-            scanProgress = scanProgress
-        )
-        ScanActionButton(
-            showCameraPreview = showCameraPreview,
-            onStartScan = { isAnalyzing = true },
-            onNewScan = {
-                showCameraPreview = true
-                detectedEmotion = null
-                scanProgress = 0f
+        if (detectedEmotion == null) {
+            // Show camera + scan button while scanning/not scanned
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                MoodScanHeader(navController = navController)
+                MoodCameraCard(
+                    isScanning = isAnalyzing,
+                    scanProgress = scanProgress
+                )
+                ScanActionButton(
+                    showCameraPreview = !isAnalyzing,
+                    onStartScan = { isAnalyzing = true },
+                    onNewScan = {
+                        detectedEmotion = null
+                        scanProgress = 0f
+                        isAnalyzing = false
+                    }
+                )
             }
-        )
-        detectedEmotion?.let { emotion ->
+        } else {
+            // Overwrite everything with the result
             MoodResultSection(
-                mood = emotion,
-                onContinue = { /* Navigate or close */ },
-                onTalkToAi = { /* Navigate to AI companion */ }
+                mood = detectedEmotion!!,
+                onContinue = {
+                    // Navigate to Home
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.CameraScan.route) { inclusive = true } // remove CameraScan from backstack
+                    }
+                },
+                onReflect = {    navController.navigate(Screen.Reflection.createRoute(entryId = "new_scan", mood = detectedEmotion!!)) {
+                    popUpTo(Screen.CameraScan.route) { inclusive = true } // remove CameraScan from backstack
+                }
+
+                }
             )
         }
     }
 
     GlobalNotificationHandler(state = notificationState)
 }
+

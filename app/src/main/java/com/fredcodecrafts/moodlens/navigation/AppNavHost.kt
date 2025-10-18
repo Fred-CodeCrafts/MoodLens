@@ -20,7 +20,7 @@ fun AppNavHost(
     NavHost(
         navController = navController,
         // Using Insights as the start destination as provided, but often Login or Home is used.
-        startDestination = Screen.Insights.route,
+        startDestination = Screen.Login.route,
         modifier = modifier
     ) {
         composable(Screen.Login.route) {
