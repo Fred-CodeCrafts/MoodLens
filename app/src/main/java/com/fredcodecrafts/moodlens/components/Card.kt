@@ -164,28 +164,27 @@ fun StatsColumn(
 
 @Composable
 fun ChatMessageBubble(message: Message) {
-    // Define the gradient for the AI bubble
-    val aiGradient = Brush.verticalGradient(
-        colors = listOf(SecondaryBlue, Color(0xFFD6F3FF))
-    )
-
     if (message.isUser) {
-        // Call the reusable bubble for the user
         MessageBubble(
             message = message,
-            brush = GradientPrimary, // Your purple gradient
+            // Pakai warna solid user (misal GradientPrimary masih dipakai, ubah jadi Color)
+            // backgroundColor = Color(0xFF6B46C1), // Contoh warna solid user
+            // Atau kalau mau pakai warna transparan yang sama:
+            backgroundColor = BubbleChatUserColor,
+            border = BorderStroke(1.dp, BubbleChatBorderColor), // Border user
             shape = UserBubbleShape(),
             arrangement = Arrangement.End,
-            contentColor = Color.White // White text on a dark background
+            contentColor = Color.White // Sesuaikan contentColor
         )
-    } else {
-        // Call the reusable bubble for the AI
+    } else { // Pesan AI
         MessageBubble(
             message = message,
-            brush = aiGradient,
+            // Pakai warna dan border baru
+            backgroundColor = BubbleChatColor,
+            border = BorderStroke(1.dp, BubbleChatBorderColor),
             shape = AiBubbleShape(),
             arrangement = Arrangement.Start,
-            contentColor = MaterialTheme.colorScheme.onSurface // Dark text on a light background
+            contentColor = Color.White // Teks hitam di atas background terang transparan
         )
     }
 }
@@ -195,7 +194,10 @@ fun ChatMessageBubble(message: Message) {
 @Composable
 private fun MessageBubble(
     message: Message,
-    brush: Brush,
+    // Ganti 'brush' jadi 'backgroundColor'
+    backgroundColor: Color,
+    // Tambah parameter border
+    border: BorderStroke? = null,
     shape: Shape,
     arrangement: Arrangement.Horizontal,
     contentColor: Color
@@ -209,9 +211,13 @@ private fun MessageBubble(
         Surface(
             modifier = Modifier
                 .widthIn(max = 300.dp)
-                .background(brush, shape)
-                .clip(shape),
-            color = Color.Transparent
+                // Hapus background modifier dari sini
+                .clip(shape), // Cukup clip saja
+            // Terapkan warna solid di sini
+            color = backgroundColor,
+            shape = shape,
+            // Terapkan border jika ada
+            border = border
         ) {
             MessageContent(message, contentColor = contentColor)
         }
