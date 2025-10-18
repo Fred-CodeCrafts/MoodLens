@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Favorite // Available icon
 import androidx.compose.material3.*
@@ -21,6 +22,9 @@ import com.fredcodecrafts.moodlens.database.entities.Note
 import com.fredcodecrafts.moodlens.database.entities.MoodScanStat
 import com.fredcodecrafts.moodlens.database.DummyData
 import java.util.concurrent.TimeUnit
+import com.fredcodecrafts.moodlens.ui.theme.*
+import com.fredcodecrafts.moodlens.navigation.Screen
+
 
 @Composable
 fun InsightsScreen(
@@ -60,68 +64,109 @@ fun InsightsScreen(
     ) {
         // Header
         item {
-            Text(
-                text = "Insights",
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = FontWeight.Bold
-                ),
-                color = Color(0xFF1A1A1A),
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Start
+            ) {
+                // Back button navigates to Home
+                IconButton(onClick = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Insights.route) { inclusive = true }
+                    }
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color(0xFF1A1A1A)
+                    )
+                }
+
+                // Centered title
+                Box(
+                    modifier = Modifier
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Insights",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = Color(0xFF1A1A1A)
+                    )
+                }
+
+                // Spacer to balance the back button
+                Spacer(modifier = Modifier.width(48.dp))
+            }
         }
+
+
 
         // Most Common Mood Card
         item {
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF9575CD) // Purple
-                )
+                    containerColor = Color.Transparent // Keep card transparent for gradient
+                ),
+                elevation = CardDefaults.cardElevation(8.dp)
             ) {
-                Column(
+                Box(
                     modifier = Modifier
+                        .background(GradientPrimary, RoundedCornerShape(16.dp))
                         .fillMaxWidth()
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Emoji
-                    Text(
-                        text = getMoodEmoji(insightsData.mostCommonMood ?: "Anxious"),
-                        style = MaterialTheme.typography.displayLarge,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    Text(
-                        text = "Your Most Common Mood",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color.White,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
-
-                    Text(
-                        text = insightsData.mostCommonMood ?: "No data",
-                        style = MaterialTheme.typography.headlineSmall.copy(
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = Color.White,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    Surface(
-                        color = Color.White.copy(alpha = 0.3f),
-                        shape = RoundedCornerShape(12.dp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        // Emoji
                         Text(
-                            text = "${insightsData.mostCommonMoodCount} times",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            text = getMoodEmoji(insightsData.mostCommonMood ?: "Anxious"),
+                            style = MaterialTheme.typography.displayLarge,
+                            modifier = Modifier.padding(bottom = 8.dp)
                         )
+
+                        Text(
+                            text = "Your Most Common Mood",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = BadgeTextWhite,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+
+                        Text(
+                            text = insightsData.mostCommonMood ?: "No data",
+                            style = MaterialTheme.typography.headlineSmall.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = BadgeTextWhite,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+
+                        Surface(
+                            color = WhiteTransparent30,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                text = "${insightsData.mostCommonMoodCount} times",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = BadgeTextWhite,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                        }
                     }
                 }
             }
         }
+
 
         // Wellness Score Card
         item {
@@ -129,8 +174,9 @@ fun InsightsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color.White
-                )
+                    containerColor = Color.White // Card stays white; gradient could also be applied here if desired
+                ),
+                elevation = CardDefaults.cardElevation(6.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -144,9 +190,9 @@ fun InsightsScreen(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = Icons.Default.Favorite, // FIXED: Using Assessment icon
+                                imageVector = Icons.Default.Favorite,
                                 contentDescription = null,
-                                tint = Color(0xFF66BB6A),
+                                tint = SuccessGreen, // Use theme success color
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -155,12 +201,12 @@ fun InsightsScreen(
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.SemiBold
                                 ),
-                                color = Color(0xFF1A1A1A)
+                                color = TextPrimary // Use primary text color from theme
                             )
                         }
 
                         Surface(
-                            color = Color(0xFF66BB6A),
+                            color = SuccessGreen, // Use theme success color
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
@@ -177,12 +223,12 @@ fun InsightsScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     LinearProgressIndicator(
-                        progress = { insightsData.wellnessScore / 100f },
+                        progress = insightsData.wellnessScore / 100f,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(8.dp),
-                        color = Color(0xFF7E57C2),
-                        trackColor = Color(0xFFE0E0E0)
+                        color = MainPurple, // Use primary purple for progress
+                        trackColor = LightGray // Muted/track color from theme
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -190,11 +236,12 @@ fun InsightsScreen(
                     Text(
                         text = "Based on positive mood entries this period",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF757575)
+                        color = TextSecondary // Secondary text color from theme
                     )
                 }
             }
         }
+
 
         // This Week Card
         item {
@@ -290,7 +337,7 @@ fun InsightsScreen(
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.SemiBold
                         ),
-                        color = Color(0xFF1A1A1A),
+                        color = TextPrimary,
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
 
@@ -308,60 +355,69 @@ fun InsightsScreen(
             }
         }
 
-        // Personalized Tips Card
+
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFFFFCDD2) // Light pink/peach
-                )
+                    containerColor = Color.Transparent // Card itself is transparent
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // optional: remove shadow
             ) {
-                Column(
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .background(GradientWarm, RoundedCornerShape(16.dp)) // Apply gradient here
                         .padding(20.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "🎯",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Personalized Tips",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.SemiBold
-                            ),
-                            color = Color(0xFFD32F2F) // Darker red for better contrast
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    insightsData.personalizedTips.forEach { tip ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.Top
-                        ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = getTipIcon(tip),
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.padding(end = 8.dp)
+                                text = "🎯",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color.White // White icon/text
                             )
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = tip,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFFD32F2F),
-                                modifier = Modifier.weight(1f)
+                                text = "Personalized Tips",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                color = Color.White
                             )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        insightsData.personalizedTips.forEach { tip ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Text(
+                                    text = getTipIcon(tip),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = Color.White, // White emoji/icon
+                                    modifier = Modifier.padding(end = 8.dp)
+                                )
+                                Text(
+                                    text = tip,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White, // White text
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+
+
 
         // Bottom spacing
         item {
@@ -391,7 +447,7 @@ fun MoodDistributionBar(
         Text(
             text = mood,
             style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFF1A1A1A),
+            color = TextPrimary,
             modifier = Modifier.width(80.dp)
         )
 
@@ -399,25 +455,20 @@ fun MoodDistributionBar(
             modifier = Modifier
                 .weight(1f)
                 .height(8.dp)
-                .background(Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                .background(LightGray, RoundedCornerShape(4.dp))
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
                     .fillMaxWidth(progress)
-                    .background(
-                        Color(0xFF7E57C2),
-                        RoundedCornerShape(4.dp)
-                    )
+                    .background(MainPurple, RoundedCornerShape(4.dp))
             )
         }
 
         Text(
             text = count.toString(),
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontWeight = FontWeight.Bold
-            ),
-            color = Color(0xFF1A1A1A),
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+            color = TextPrimary,
             modifier = Modifier
                 .padding(start = 12.dp)
                 .width(24.dp)

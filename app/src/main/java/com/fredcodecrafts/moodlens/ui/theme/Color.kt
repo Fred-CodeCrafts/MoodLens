@@ -75,4 +75,35 @@ val BackgroundColor = Brush.verticalGradient(
 )
 
 val CardBackground = Color(0x99FFFFFF) // White @ 60% opacity
-val CardShadow = Color(0x33000000)     // Soft shadow (20% black)
+val CardShadow = Color(0x33000000)
+
+val WhiteTransparent20 = Color(0x33FFFFFF) // 20% opacity white
+val BlackTransparent20 = Color(0x33000000) // shadow
+
+// --- Locked / Disabled Colors ---
+val LockBackground = MutedNeutral
+
+
+// --- Badges ---
+val BadgePrimary = WhiteTransparent20
+val BadgeTextWhite = Color(0xFFFFFFFF)
+val BadgeSuccessBackground = SuccessGreen
+val BadgeSuccessText = Color(0xFFFFFFFF)
+
+// --- Gradients ---
+
+// --- Progress Bar / Stats ---
+val ProgressBarFilled = MainPurple
+val ProgressBarBackground = MutedNeutral
+
+// --- Shadows ---
+val CardShadowSoft = BlackTransparent20
+val CardShadowMedium = Color(0x26000000) // ~15% black
+val CardShadowGlow = Color(0x330000FF)   // optional, mimic Tailwind glow
+
+// --- Notifications / Tips Text ---
+val TipsTextDefault = WhiteTransparent20
+val TipsTextHighlight = BadgeTextWhite
+
+val WhiteTransparent30 = Color.White.copy(alpha = 0.3f)
+// Soft shadow (20% black)

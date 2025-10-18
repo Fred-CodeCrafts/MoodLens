@@ -19,19 +19,20 @@ fun AppNavHost(
 ) {
     NavHost(
         navController = navController,
-        startDestination = Screen.Journal.route,
+        // Using Insights as the start destination as provided, but often Login or Home is used.
+        startDestination = Screen.Insights.route,
         modifier = modifier
     ) {
         composable(Screen.Login.route) {
             LoginScreen(
                 onLoginSuccess = {
-                    // Navigate to home after login
+                    // Navigate to CameraScan after successful login
                     navController.navigate(Screen.CameraScan.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
                 },
                 onSkipDemo = {
-                    // Navigate to home skipping login
+                    // Navigate to CameraScan skipping login
                     navController.navigate(Screen.CameraScan.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
@@ -41,13 +42,18 @@ fun AppNavHost(
         composable(Screen.Home.route) {
             MainMenuScreen(navController = navController, database = database)
         }
-        composable(Screen.CameraScan.route) { CameraScanScreen() }
+
+        // 🚨 UPDATE: Pass the navController to CameraScanScreen
+        composable(Screen.CameraScan.route) {
+            CameraScanScreen(navController = navController)
+        }
+
         composable(Screen.Journal.route) {
-            // Provide all required parameters
+            // NOTE: JournalScreen will need navController and database if it interacts with journal entries.
             JournalScreen(
                 navController = navController,
-//                context = LocalContext.current, // Get context here
-//                userId = "default_user" // Provide the userId
+//                context = LocalContext.current, // Get context here if needed
+//                userId = "default_user" // Provide the userId if required by JournalScreen
             )
         }
         composable(Screen.Insights.route) {
@@ -75,10 +81,10 @@ fun AppNavHost(
                 },
                 onReflection = { reflection ->
                     // Save reflection to database or handle as needed
-                    // You can pass this back to JournalScreen if needed
+                    // You would typically use a ViewModel/Repository here to update the database
                     println("AI Reflection saved: $reflection")
 
-                    // Navigate back to Journal after saving
+                    // Navigate back to Journal/Home after saving
                     navController.popBackStack()
                 }
             )

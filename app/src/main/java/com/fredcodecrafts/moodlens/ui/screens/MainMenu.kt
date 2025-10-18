@@ -195,15 +195,15 @@ fun MainMenuScreen(
             fontSize = MaterialTheme.typography.bodySmall.fontSize
         )
         // TEMPORARY TESTING BUTTON - REMOVE LATER
-        Spacer(modifier = Modifier.height(16.dp))
-        AppButton(
-            text = "TEST - Go to Insights",
-            onClick = { navController.navigate(Screen.Insights.route) },
-            modifier = Modifier
-                .fillMaxWidth(),
-            containerColor = Color.Red, // Make it stand out
-            contentColor = Color.White
-        )
+       // Spacer(modifier = Modifier.height(16.dp))
+       // AppButton(
+       //     text = "TEST - Go to Insights",
+         //   onClick = { navController.navigate(Screen.Insights.route) },
+        //    modifier = Modifier
+        //        .fillMaxWidth(),
+        //    containerColor = Color.Red, // Make it stand out
+        //    contentColor = Color.White
+    //    )
     }
 }
 
