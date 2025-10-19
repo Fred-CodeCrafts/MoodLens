@@ -5,8 +5,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
 // --- Core Colors (converted from HSL in Tailwind theme) ---
-val MainPurple = Color(0xFF7B3AED)    // Brand purple (hsl(258, 89%, 66%))
-val MainBackground = Color(0xFFF9F8FF) // Corrected background (hsl(245, 100%, 99%))
+val MainPurple = Color(0xFF6B46C1)    // Brand purple (hsl(258, 89%, 66%))
+val MainBackground = Color(0xFFF9F9FF) // Corrected background (hsl(245, 100%, 99%))
 
 // Extended Palette
 val DarkPurple = Color(0xFF5A35A2)    // Supporting purple shade
