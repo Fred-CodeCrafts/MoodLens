@@ -4,9 +4,13 @@ Jetpack Compose Android project using **Material 3**, custom colors, and typogra
 
 **Goal:** Everyone on the team can build and run without Gradle or Android Studio version conflicts.
 Project By: 
+
 Fred-CodeCrafts (Frederick Garner Wibowo)
+
 chmpgnsupernova (Fransiskus Asisi Brian Nugrah Mariarvin)
+
 Daemonium31 (Wisnu Lintang Trenggono) 
+
 Reyscript (Reyner Devlin Saputra)
 
 ---
