@@ -19,7 +19,8 @@ import com.fredcodecrafts.moodlens.utils.NotificationType
 fun AppNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
-    database: AppDatabase
+    database: AppDatabase,
+    notificationState: NotificationState // <-- Sekarang tipe ini dikenali
 ) {
     NavHost(
         navController = navController,
