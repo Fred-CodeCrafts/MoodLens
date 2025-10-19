@@ -67,12 +67,8 @@ fun AppNavHost(
         composable(
             route = Screen.Reflection.route,
             arguments = listOf(
-                navArgument("entryId") {
-                    type = NavType.StringType
-                },
-                navArgument("mood") {
-                    type = NavType.StringType
-                }
+                navArgument("entryId") { type = NavType.StringType },
+                navArgument("mood") { type = NavType.StringType }
             )
         ) { backStackEntry ->
             val entryId = backStackEntry.arguments?.getString("entryId") ?: ""
@@ -83,7 +79,7 @@ fun AppNavHost(
                 currentMood = currentMood,
                 onNavigateBack = { navController.popBackStack() },
                 // 3. Modify the onReflection callback
-                onReflection = { reflection ->
+                onReflectionComplete = { reflection ->
                     // Optional: Save reflection logic here or pass it up further
                     println("AI Reflection saved: $reflection")
 
@@ -97,7 +93,14 @@ fun AppNavHost(
                     )
 
                     // Navigate back *after* triggering notification
-                    navController.popBackStack()
+//                    navController.popBackStack()
+                },
+                onFinishAndNavigate = {
+                    navController.navigate(Screen.Journal.route) {
+                        // Hapus backstack sampai start destination
+                        popUpTo(navController.graph.startDestinationId) { inclusive = false }
+                        launchSingleTop = true // Hindari duplikat JournalScreen
+                    }
                 }
             )
         }
