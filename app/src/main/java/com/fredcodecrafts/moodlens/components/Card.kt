@@ -30,7 +30,6 @@ import com.fredcodecrafts.moodlens.ui.theme.GradientPrimary
 import com.fredcodecrafts.moodlens.ui.theme.SecondaryBlue
 import com.fredcodecrafts.moodlens.ui.theme.BubbleChatColor
 import com.fredcodecrafts.moodlens.ui.theme.BubbleChatBorderColor
-import com.fredcodecrafts.moodlens.ui.theme.BubbleChatUserBorderColor
 import com.fredcodecrafts.moodlens.ui.theme.BubbleChatUserColor
 
 
