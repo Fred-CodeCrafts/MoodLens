@@ -6,11 +6,8 @@ Jetpack Compose Android project using **Material 3**, custom colors, and typogra
 Project By: 
 
 Fred-CodeCrafts (Frederick Garner Wibowo)
-
 chmpgnsupernova (Fransiskus Asisi Brian Nugrah Mariarvin)
-
 Daemonium31 (Wisnu Lintang Trenggono) 
-
 Reyscript (Reyner Devlin Saputra)
 
 ---
