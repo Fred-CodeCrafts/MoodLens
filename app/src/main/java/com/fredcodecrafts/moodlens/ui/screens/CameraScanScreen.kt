@@ -144,7 +144,6 @@ fun MoodScanHeader(navController: NavHostController) {
         }
     }
 }
-
 @Composable
 fun MoodCameraCard(
     isScanning: Boolean,
@@ -158,25 +157,28 @@ fun MoodCameraCard(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(1f)
-            .padding(16.dp), // ✅ Shadow removed
+            .padding(16.dp),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent) // Made transparent
     ) {
+        // Gradient background applied to the Box inside the Card
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(primaryGradient, RoundedCornerShape(24.dp)), // Apply gradient here
             contentAlignment = Alignment.Center
         ) {
             if (!isScanning) {
                 CameraPreviewPlaceholder()
             } else {
-                val infiniteTransition = rememberInfiniteTransition()
+                val infiniteTransition = rememberInfiniteTransition(label = "Rotation") // Added label
                 val rotation by infiniteTransition.animateFloat(
                     initialValue = 0f,
                     targetValue = 360f,
                     animationSpec = infiniteRepeatable(
                         animation = tween(1000, easing = LinearEasing),
                         repeatMode = RepeatMode.Restart
-                    )
+                    ), label = "Rotation Animation" // Added label
                 )
 
                 Column(
