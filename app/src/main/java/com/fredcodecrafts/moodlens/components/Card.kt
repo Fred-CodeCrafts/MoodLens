@@ -1,5 +1,6 @@
 package com.fredcodecrafts.moodlens.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -27,6 +28,10 @@ import java.util.*
 import com.fredcodecrafts.moodlens.database.entities.Message
 import com.fredcodecrafts.moodlens.ui.theme.GradientPrimary
 import com.fredcodecrafts.moodlens.ui.theme.SecondaryBlue
+import com.fredcodecrafts.moodlens.ui.theme.BubbleChatColor
+import com.fredcodecrafts.moodlens.ui.theme.BubbleChatBorderColor
+import com.fredcodecrafts.moodlens.ui.theme.BubbleChatUserBorderColor
+import com.fredcodecrafts.moodlens.ui.theme.BubbleChatUserColor
 
 
 /**
