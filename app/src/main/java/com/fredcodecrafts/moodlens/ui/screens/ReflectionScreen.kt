@@ -93,7 +93,8 @@ fun ReflectionScreen(
     entryId: String,
     currentMood: String,
     onNavigateBack: () -> Unit,
-    onReflection: (String) -> Unit
+    onReflectionComplete: (String) -> Unit,
+    onFinishAndNavigate: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
 
@@ -270,7 +271,7 @@ fun ReflectionScreen(
             scrollToBottom()
 
             // Callback with reflection
-            onReflection(aiReflection)
+            onReflectionComplete(aiReflection)
         }
     }
     Box(
@@ -325,7 +326,7 @@ fun ReflectionScreen(
                     showSummary -> {
                         ReflectionSummary(
                             session = session,
-                            onDone = onNavigateBack
+                            onDone = onFinishAndNavigate
                         )
                     }
 
@@ -434,67 +435,67 @@ private fun ReflectionInputArea(
     onSend: () -> Unit,
     placeholder: String
 ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            // ✅ Atur alignment Column jika perlu (misal: CenterHorizontally)
-            horizontalAlignment = Alignment.CenterHorizontally
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        // ✅ Atur alignment Column jika perlu (misal: CenterHorizontally)
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(
+            verticalAlignment = Alignment.Bottom, // Jaga agar TextField dan Button rata bawah
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                verticalAlignment = Alignment.Bottom, // Jaga agar TextField dan Button rata bawah
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                OutlinedTextField(
-                    value = currentResponse,
-                    onValueChange = onResponseChange,
-                    placeholder = {
-                        Text(placeholder, color = Color.White)
-                    },
-                    modifier = Modifier
-                        .weight(1f) // Biarkan TextField mengisi sisa ruang
-                        .padding(end = 8.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color.White,
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
-                        // ✅ Tambahkan textColor di sini
-                        focusedTextColor = Color.White, // Warna teks saat fokus
-                        unfocusedTextColor = Color.White // Warna teks saat tidak fokus
-                        // Mungkin perlu atur warna text color lain (cursor, dll)
-                        // cursorColor = Color.White,
-                        // focusedLabelColor = Color.White,
-                        // unfocusedLabelColor = Color.White.copy(alpha=0.7f)
-
-                    ),
-                    maxLines = 4
-                )
-
-                IconButton(
-                    onClick = onSend,
-                    enabled = currentResponse.isNotBlank(),
-                    colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = if (currentResponse.isNotBlank()) MainPurple else Color.Gray,
-                        contentColor = Color.White,
-                        disabledContainerColor = Color.Gray.copy(alpha = 0.3f),
-                        disabledContentColor = Color.White
-                    ),
-                    modifier = Modifier.size(48.dp) // Beri ukuran tetap agar bentuknya konsisten
-                ) {
-                    Icon(Icons.Default.Send, contentDescription = "Send")
-                }
-            }
-
-            Text(
-                text = "💜 Your thoughts are safe and valued",
-                fontSize = 12.sp,
-                color = Color.White,
+            OutlinedTextField(
+                value = currentResponse,
+                onValueChange = onResponseChange,
+                placeholder = {
+                    Text(placeholder, color = Color.White)
+                },
                 modifier = Modifier
-                    // .align(Alignment.CenterHorizontally) // Tidak perlu karena Column sudah diatur
-                    .padding(top = 8.dp)
+                    .weight(1f) // Biarkan TextField mengisi sisa ruang
+                    .padding(end = 8.dp),
+                shape = RoundedCornerShape(24.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.White,
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
+                    // ✅ Tambahkan textColor di sini
+                    focusedTextColor = Color.White, // Warna teks saat fokus
+                    unfocusedTextColor = Color.White // Warna teks saat tidak fokus
+                    // Mungkin perlu atur warna text color lain (cursor, dll)
+                    // cursorColor = Color.White,
+                    // focusedLabelColor = Color.White,
+                    // unfocusedLabelColor = Color.White.copy(alpha=0.7f)
+
+                ),
+                maxLines = 4
             )
+
+            IconButton(
+                onClick = onSend,
+                enabled = currentResponse.isNotBlank(),
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = if (currentResponse.isNotBlank()) MainPurple else Color.Gray,
+                    contentColor = Color.White,
+                    disabledContainerColor = Color.Gray.copy(alpha = 0.3f),
+                    disabledContentColor = Color.White
+                ),
+                modifier = Modifier.size(48.dp) // Beri ukuran tetap agar bentuknya konsisten
+            ) {
+                Icon(Icons.Default.Send, contentDescription = "Send")
+            }
         }
+
+        Text(
+            text = "💜 Your thoughts are safe and valued",
+            fontSize = 12.sp,
+            color = Color.White,
+            modifier = Modifier
+                // .align(Alignment.CenterHorizontally) // Tidak perlu karena Column sudah diatur
+                .padding(top = 8.dp)
+        )
     }
+}
 
 @Composable
 private fun AdditionalNotesInput(
@@ -829,13 +830,14 @@ private fun generateAIReflection(session: ReflectionSession): String {
     return baseReflection + ending
 }
 
-@Preview(showBackground = true)
-@Composable
-fun ReflectionScreenPreview() {
-    ReflectionScreen(
-        entryId = "preview_entry",
-        currentMood = "sad",
-        onNavigateBack = {},
-        onReflection = {}
-    )
-}
+//@Preview(showBackground = true)
+//@Composable
+//fun ReflectionScreenPreview() {
+//    ReflectionScreen(
+//        entryId = "preview_entry",
+//        currentMood = "sad",
+//        onNavigateBack = {},
+//        onReflection = {}
+//
+//    )
+//}
