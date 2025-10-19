@@ -57,8 +57,8 @@ fun AppNavHost(
             // NOTE: JournalScreen will need navController and database if it interacts with journal entries.
             JournalScreen(
                 navController = navController,
-//                context = LocalContext.current, // Get context here if needed
-//                userId = "default_user" // Provide the userId if required by JournalScreen
+                context = LocalContext.current, // Get context here if needed
+                userId = "default_user" // Provide the userId if required by JournalScreen
             )
         }
         composable(Screen.Insights.route) {
