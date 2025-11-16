@@ -45,8 +45,7 @@ val purpleColor = Color(0xFF7B3FE4) // your purple
 fun CameraPreviewPlaceholder() {
     Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .height(320.dp)
+            .fillMaxSize()
             .clip(RoundedCornerShape(24.dp))
             .background(
                 brush = Brush.verticalGradient(
@@ -81,7 +80,15 @@ fun MoodScanHeader(navController: NavHostController) {
     ) {
         // Home button top-left
         IconButton(
-            onClick = { navController.navigateUp() },
+            onClick = {
+                navController.navigate(Screen.Home.route) {
+                    // Clear back stack up to the start destination to prevent going back to CameraScan
+                    popUpTo(navController.graph.startDestinationId) {
+                        inclusive = false
+                    }
+                    launchSingleTop = true
+                }
+            },
             modifier = Modifier.align(Alignment.TopStart)
         ) {
             Icon(

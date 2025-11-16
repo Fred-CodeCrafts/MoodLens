@@ -240,8 +240,7 @@ fun JournalScreen(
 // -- Supporting Composables --
 
 @Composable
-fun JournalHeader(
-    navController: NavController) {
+fun JournalHeader(navController: NavController) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -250,11 +249,13 @@ fun JournalHeader(
         horizontalArrangement = Arrangement.Start
     ) {
         // Back button navigates to Home
-        IconButton(onClick = {
-            navController.navigate(Screen.Home.route) {
-                popUpTo(Screen.Journal.route) { inclusive = true }
+        IconButton(
+            onClick = {
+                navController.navigate(Screen.Home.route) {
+                    popUpTo(Screen.Journal.route) { inclusive = true }
+                }
             }
-        }) {
+        ) {
             Icon(
                 imageVector = Icons.Default.ArrowBack,
                 contentDescription = "Back",
@@ -264,8 +265,7 @@ fun JournalHeader(
 
         // Centered title
         Box(
-            modifier = Modifier
-                .weight(1f),
+            modifier = Modifier.weight(1f),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -276,9 +276,11 @@ fun JournalHeader(
                 color = Color(0xFF1A1A1A)
             )
         }
+
         Spacer(modifier = Modifier.width(48.dp))
     }
 }
+
 
 @Composable
 fun StatsCard(stats: JournalStats) {

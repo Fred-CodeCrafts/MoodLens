@@ -24,9 +24,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fredcodecrafts.moodlens.components.ChatMessageBubble
 import com.fredcodecrafts.moodlens.components.InputField
-import com.fredcodecrafts.moodlens.database.PreloadedQuestions
+// Removed PreloadedQuestions import usage; DB will be used instead
 import com.fredcodecrafts.moodlens.database.entities.Message
 import com.fredcodecrafts.moodlens.database.entities.Question
+import com.fredcodecrafts.moodlens.database.AppDatabase
+import com.fredcodecrafts.moodlens.database.entities.Note
+import com.fredcodecrafts.moodlens.database.entities.JournalEntry
 import com.fredcodecrafts.moodlens.ui.theme.GradientPrimary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -52,7 +55,7 @@ data class ReflectionSession(
     var additionalNotes: String? = null
 )
 
-// Helper to map mood strings to emotion labels in PreloadedQuestions
+// Helper to map mood strings to emotion labels (kept as-is)
 object MoodMapper {
     fun mapMoodToEmotion(mood: String): String {
         return when (mood.lowercase()) {
@@ -65,18 +68,9 @@ object MoodMapper {
         }
     }
 
+    // kept but not used; DB is used for actual questions
     fun getQuestionsForMood(mood: String): List<Question> {
-        val emotion = mapMoodToEmotion(mood)
-        return PreloadedQuestions.questions.filter {
-            it.emotionLabel == emotion
-        }.sortedBy {
-            // Ensure opening question comes first
-            when (it.type) {
-                "opening" -> 0
-                "prompt" -> 1
-                else -> 2
-            }
-        }
+        return emptyList()
     }
 }
 
@@ -90,6 +84,7 @@ val BackgroundColor = Color(0xFFF9FAFB)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReflectionScreen(
+    database: AppDatabase, // injected DB instance
     entryId: String,
     currentMood: String,
     onNavigateBack: () -> Unit,
@@ -97,6 +92,10 @@ fun ReflectionScreen(
     onFinishAndNavigate: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val questionsDao = remember { database.questionsDao() }
+    val messagesDao = remember { database.messagesDao() }
+    val journalDao = remember { database.journalDao() }
+    val notesDao = remember { database.notesDao() }
 
     // State management
     var session by remember {
@@ -104,7 +103,7 @@ fun ReflectionScreen(
             ReflectionSession(
                 entryId = entryId,
                 mood = currentMood,
-                questions = MoodMapper.getQuestionsForMood(currentMood)
+                questions = emptyList() // will load from DB
             )
         )
     }
@@ -124,32 +123,47 @@ fun ReflectionScreen(
         (session.responses.size.toFloat()) / promptQuestions.size.toFloat()
     } else 0f
 
-    // Initialize with opening message
-    LaunchedEffect(Unit) {
-        delay(500)
-        val openingQuestion = session.questions.firstOrNull { it.type == "opening" }
-        if (openingQuestion != null) {
-            messages = messages + Message(
-                messageId = UUID.randomUUID().toString(),
-                entryId = entryId,
-                text = openingQuestion.text,
-                isUser = false,
-                timestamp = System.currentTimeMillis()
-            )
-            hasShownOpening = true
-        }
+    // Initialize: load questions from DB and load any existing messages for this entry
+    LaunchedEffect(key1 = Unit) {
+        // Load questions based on emotion
+        val emotion = MoodMapper.mapMoodToEmotion(currentMood)
+        val opening = try { questionsDao.getOpeningQuestion(emotion) } catch (e: Exception) { null }
+        val prompts = try { questionsDao.getPromptQuestions(emotion) } catch (e: Exception) { emptyList<Question>() }
+        val loadedQuestions = listOfNotNull(opening) + prompts
 
-        // Show first prompt question after opening
-        delay(1500)
-        val firstPrompt = promptQuestions.firstOrNull()
-        if (firstPrompt != null) {
-            messages = messages + Message(
-                messageId = UUID.randomUUID().toString(),
-                entryId = entryId,
-                text = firstPrompt.text,
-                isUser = false,
-                timestamp = System.currentTimeMillis()
-            )
+        session = session.copy(questions = loadedQuestions)
+
+        // Load existing messages for this entry (if any) — keep them in-memory and display
+        val existingMessages = try { messagesDao.getMessagesForEntry(entryId) } catch (e: Exception) { emptyList<Message>() }
+        if (existingMessages.isNotEmpty()) {
+            messages = existingMessages
+        } else {
+            // If no existing messages, show opening + first prompt as before, using loadedQuestions
+            delay(500)
+            val openingQuestion = session.questions.firstOrNull { it.type == "opening" }
+            if (openingQuestion != null) {
+                messages = messages + Message(
+                    messageId = UUID.randomUUID().toString(),
+                    entryId = entryId,
+                    text = openingQuestion.text,
+                    isUser = false,
+                    timestamp = System.currentTimeMillis()
+                )
+                hasShownOpening = true
+            }
+
+            // Show first prompt question after opening
+            delay(1500)
+            val firstPrompt = session.questions.filter { it.type == "prompt" }.firstOrNull()
+            if (firstPrompt != null) {
+                messages = messages + Message(
+                    messageId = UUID.randomUUID().toString(),
+                    entryId = entryId,
+                    text = firstPrompt.text,
+                    isUser = false,
+                    timestamp = System.currentTimeMillis()
+                )
+            }
         }
     }
 
@@ -166,7 +180,7 @@ fun ReflectionScreen(
         if (currentResponse.isBlank()) return
 
         scope.launch {
-            // Add user message
+            // Add user message to in-memory list (we save to DB only at completion)
             messages = messages + Message(
                 messageId = UUID.randomUUID().toString(),
                 entryId = entryId,
@@ -175,9 +189,10 @@ fun ReflectionScreen(
                 timestamp = System.currentTimeMillis()
             )
 
-            // Store response for current prompt question
-            if (currentQuestionIndex < promptQuestions.size) {
-                session.responses[promptQuestions[currentQuestionIndex].questionId] = currentResponse
+            // Store response for current prompt question in session (in-memory)
+            val promptQs = session.questions.filter { it.type == "prompt" }
+            if (currentQuestionIndex < promptQs.size) {
+                session.responses[promptQs[currentQuestionIndex].questionId] = currentResponse
             }
             currentResponse = ""
 
@@ -189,11 +204,11 @@ fun ReflectionScreen(
             isTyping = false
 
             // Move to next question or complete
-            if (currentQuestionIndex < promptQuestions.size - 1) {
+            if (currentQuestionIndex < promptQs.size - 1) {
                 currentQuestionIndex++
 
                 // Add transition message
-                val transitionMessage = getTransitionMessage(currentQuestionIndex, promptQuestions.size)
+                val transitionMessage = getTransitionMessage(currentQuestionIndex, promptQs.size)
                 if (transitionMessage.isNotEmpty()) {
                     messages = messages + Message(
                         messageId = UUID.randomUUID().toString(),
@@ -210,7 +225,7 @@ fun ReflectionScreen(
                 messages = messages + Message(
                     messageId = UUID.randomUUID().toString(),
                     entryId = entryId,
-                    text = promptQuestions[currentQuestionIndex].text,
+                    text = promptQs[currentQuestionIndex].text,
                     isUser = false,
                     timestamp = System.currentTimeMillis()
                 )
@@ -239,6 +254,7 @@ fun ReflectionScreen(
             if (includeNotes && additionalNotes.isNotBlank()) {
                 session.additionalNotes = additionalNotes
 
+                // Add additional notes as an in-memory user message (we will persist notes separately)
                 messages = messages + Message(
                     messageId = UUID.randomUUID().toString(),
                     entryId = entryId,
@@ -251,7 +267,7 @@ fun ReflectionScreen(
             isTyping = true
             delay(2000)
 
-            // Generate AI reflection
+            // Generate AI reflection (local generator)
             val aiReflection = generateAIReflection(session)
             session.aiReflection = aiReflection
             session.endTime = System.currentTimeMillis()
@@ -264,6 +280,47 @@ fun ReflectionScreen(
                 timestamp = System.currentTimeMillis()
             )
 
+            // Persist everything to DB (since you chose option B: save only at the end)
+            try {
+                // 1) Save or update JournalEntry.aiReflection
+                val existingEntry = journalDao.getEntryById(entryId)
+                if (existingEntry != null) {
+                    val updated = existingEntry.copy(aiReflection = aiReflection)
+                    journalDao.insert(updated)
+                } else {
+                    // If there is no journal entry, create a minimal one so aiReflection is stored
+                    val newEntry = JournalEntry(
+                        entryId = entryId,
+                        userId = "unknown", // keep existing behavior; you may set a real user id upstream
+                        mood = session.mood,
+                        timestamp = session.startTime,
+                        location = null,
+                        aiReflection = aiReflection
+                    )
+                    journalDao.insert(newEntry)
+                }
+
+                // 2) Save notes if any
+                if (!session.additionalNotes.isNullOrBlank()) {
+                    val note = Note(
+                        noteId = UUID.randomUUID().toString(),
+                        entryId = entryId,
+                        content = session.additionalNotes!!
+                    )
+                    notesDao.insert(note)
+                }
+
+                // 3) Save messages: insertAll (MessagesDao has insertAll)
+                //    We write the in-memory messages list to DB now.
+                if (messages.isNotEmpty()) {
+                    // Insert all messages (onConflict = REPLACE is declared in DAO)
+                    messagesDao.insertAll(messages)
+                }
+            } catch (e: Exception) {
+                // swallow DB exception for now (or you can show a toast/log)
+                // keep app UX stable even if DB write fails
+            }
+
             isTyping = false
             showSummary = true
             showAdditionalNotes = false
@@ -274,6 +331,7 @@ fun ReflectionScreen(
             onReflectionComplete(aiReflection)
         }
     }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -294,7 +352,7 @@ fun ReflectionScreen(
                     .fillMaxSize()
                     .padding(paddingValues)
                     .background(Color.Transparent) // <-- make it transparent
-// your linear gradient
+                // your linear gradient
             ) {
                 // Messages list
                 LazyColumn(
@@ -354,6 +412,7 @@ fun ReflectionScreen(
         }
     }
 }
+
 @Composable
 private fun ReflectionTopBar(
     progress: Float,
@@ -389,7 +448,7 @@ private fun ReflectionTopBar(
 
             // Centered Content (Heart, Title, Subtitle)
             Column(
-                modifier = Modifier.align(Alignment.Center), // Center this column within the Box
+                modifier = Modifier.align(Alignment.Center),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Icon(
@@ -426,6 +485,7 @@ private fun ReflectionTopBar(
 //        )
     } // End of Column
 }
+
 
 
 @Composable
@@ -834,10 +894,11 @@ private fun generateAIReflection(session: ReflectionSession): String {
 //@Composable
 //fun ReflectionScreenPreview() {
 //    ReflectionScreen(
+//        database = AppDatabase.getDatabase(LocalContext.current),
 //        entryId = "preview_entry",
 //        currentMood = "sad",
 //        onNavigateBack = {},
-//        onReflection = {}
-//
+//        onReflectionComplete = {},
+//        onFinishAndNavigate = {}
 //    )
 //}

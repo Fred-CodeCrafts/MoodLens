@@ -81,7 +81,8 @@ fun MainMenuScreen(
                 style = MaterialTheme.typography.headlineMedium.copy(
                     fontWeight = FontWeight.Bold
                 ),
-                modifier = Modifier.graphicsLayer(alpha = 0.99f) // Needed for blend mode to work
+                modifier = Modifier
+                    .graphicsLayer(alpha = 0.99f) // Needed for blend mode to work
                     .drawWithCache {
                         val brush = GradientPrimary
                         onDrawWithContent {

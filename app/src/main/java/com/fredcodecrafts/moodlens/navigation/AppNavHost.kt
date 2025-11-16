@@ -77,7 +77,18 @@ fun AppNavHost(
             ReflectionScreen(
                 entryId = entryId,
                 currentMood = currentMood,
-                onNavigateBack = { navController.popBackStack() },
+                database = database,   // ✅ ADD THIS
+                onNavigateBack = {
+                    navController.navigate(Screen.Journal.route) {
+                        // This ensures you don't stack multiple journal screens
+                        launchSingleTop = true
+
+                        // This clears the reflection screen from the back stack
+                        popUpTo(Screen.Reflection.route) {
+                            inclusive = true
+                        }
+                    }
+                },
                 // 3. Modify the onReflection callback
                 onReflectionComplete = { reflection ->
                     // Optional: Save reflection logic here or pass it up further
@@ -97,9 +108,8 @@ fun AppNavHost(
                 },
                 onFinishAndNavigate = {
                     navController.navigate(Screen.Journal.route) {
-                        // Hapus backstack sampai start destination
                         popUpTo(navController.graph.startDestinationId) { inclusive = false }
-                        launchSingleTop = true // Hindari duplikat JournalScreen
+                        launchSingleTop = true
                     }
                 }
             )
