@@ -45,6 +45,16 @@ android {
 }
 
 dependencies {
+    // CameraX core
+    implementation("androidx.camera:camera-core:1.3.4")
+    implementation("androidx.camera:camera-camera2:1.3.4")
+    implementation("androidx.camera:camera-lifecycle:1.3.4")
+// PreviewView
+    implementation("androidx.camera:camera-view:1.3.4")
+// ML Kit / image capture (optional)
+    implementation("androidx.camera:camera-extensions:1.3.4")
+// Permissions
+    implementation("androidx.activity:activity-compose:1.9.2")
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

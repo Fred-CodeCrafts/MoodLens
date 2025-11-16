@@ -1,5 +1,6 @@
 package com.fredcodecrafts.moodlens.ui.screens
 
+import android.content.Context
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -17,30 +18,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fredcodecrafts.moodlens.components.ChatMessageBubble
-import com.fredcodecrafts.moodlens.components.InputField
-// Removed PreloadedQuestions import usage; DB will be used instead
-import com.fredcodecrafts.moodlens.database.entities.Message
-import com.fredcodecrafts.moodlens.database.entities.Question
 import com.fredcodecrafts.moodlens.database.AppDatabase
-import com.fredcodecrafts.moodlens.database.entities.Note
 import com.fredcodecrafts.moodlens.database.entities.JournalEntry
-import com.fredcodecrafts.moodlens.ui.theme.GradientPrimary
+import com.fredcodecrafts.moodlens.database.entities.Message
+import com.fredcodecrafts.moodlens.database.entities.Note
+import com.fredcodecrafts.moodlens.database.entities.Question
+import com.fredcodecrafts.moodlens.database.viewmodel.ReflectionViewModel
+import com.fredcodecrafts.moodlens.ui.theme.gradientPrimary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.*
-import com.fredcodecrafts.moodlens.ui.theme.gradientPrimary
-import androidx.compose.material.icons.automirrored.filled.ArrowBack // Use AutoMirrored for back arrow
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material3.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.unit.dp
-
 
 // Data class for the reflection session
 data class ReflectionSession(
@@ -81,21 +79,45 @@ val TextPrimary = Color(0xFF1F2937)
 val TextSecondary = Color(0xFF6B7280)
 val BackgroundColor = Color(0xFFF9FAFB)
 
+/**
+ * ViewModel factory to create ReflectionViewModel with a Context parameter.
+ * This is necessary because ReflectionViewModel constructor requires Context.
+ */
+class ReflectionViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(ReflectionViewModel::class.java)) {
+            return ReflectionViewModel(context) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReflectionScreen(
-    database: AppDatabase, // injected DB instance
+    database: AppDatabase, // keep DB param for message/journal/notes persistence as before
     entryId: String,
     currentMood: String,
     onNavigateBack: () -> Unit,
     onReflectionComplete: (String) -> Unit,
     onFinishAndNavigate: () -> Unit
 ) {
+    val context = LocalContext.current
+
+    // Obtain ViewModel via factory (uses provided Context)
+    val reflectionViewModel: ReflectionViewModel = viewModel(
+        factory = ReflectionViewModelFactory(context)
+    )
+
     val scope = rememberCoroutineScope()
-    val questionsDao = remember { database.questionsDao() }
     val messagesDao = remember { database.messagesDao() }
     val journalDao = remember { database.journalDao() }
     val notesDao = remember { database.notesDao() }
+
+    // Collect questions from ViewModel
+    val openingQuestion by reflectionViewModel.openingQuestion.collectAsState()
+    val promptQuestionsFromVm by reflectionViewModel.promptQuestions.collectAsState()
 
     // State management
     var session by remember {
@@ -103,7 +125,7 @@ fun ReflectionScreen(
             ReflectionSession(
                 entryId = entryId,
                 mood = currentMood,
-                questions = emptyList() // will load from DB
+                questions = emptyList() // will be loaded from VM
             )
         )
     }
@@ -123,29 +145,34 @@ fun ReflectionScreen(
         (session.responses.size.toFloat()) / promptQuestions.size.toFloat()
     } else 0f
 
-    // Initialize: load questions from DB and load any existing messages for this entry
+    // Initialize: load questions via ViewModel and load any existing messages for this entry
     LaunchedEffect(key1 = Unit) {
-        // Load questions based on emotion
+        // Ask ViewModel to load questions for emotion
         val emotion = MoodMapper.mapMoodToEmotion(currentMood)
-        val opening = try { questionsDao.getOpeningQuestion(emotion) } catch (e: Exception) { null }
-        val prompts = try { questionsDao.getPromptQuestions(emotion) } catch (e: Exception) { emptyList<Question>() }
-        val loadedQuestions = listOfNotNull(opening) + prompts
+        reflectionViewModel.loadQuestionsForEmotion(emotion)
+
+        // Wait briefly for flows to emit
+        // (collectAsState will update openingQuestion / promptQuestionsFromVm automatically)
+        // Build loadedQuestions from VM-collected values once available
+        // We add a small delay to let DB queries complete (DB call is a suspend inside VM)
+        delay(100)
+        val loadedQuestions = listOfNotNull(openingQuestion) + promptQuestionsFromVm
 
         session = session.copy(questions = loadedQuestions)
 
-        // Load existing messages for this entry (if any) — keep them in-memory and display
+        // Load existing messages for this entry (if any)
         val existingMessages = try { messagesDao.getMessagesForEntry(entryId) } catch (e: Exception) { emptyList<Message>() }
         if (existingMessages.isNotEmpty()) {
             messages = existingMessages
         } else {
-            // If no existing messages, show opening + first prompt as before, using loadedQuestions
+            // If no existing messages, show opening + first prompt using loadedQuestions
             delay(500)
-            val openingQuestion = session.questions.firstOrNull { it.type == "opening" }
-            if (openingQuestion != null) {
+            val openingQ = session.questions.firstOrNull { it.type == "opening" }
+            if (openingQ != null) {
                 messages = messages + Message(
                     messageId = UUID.randomUUID().toString(),
                     entryId = entryId,
-                    text = openingQuestion.text,
+                    text = openingQ.text,
                     isUser = false,
                     timestamp = System.currentTimeMillis()
                 )
@@ -352,7 +379,6 @@ fun ReflectionScreen(
                     .fillMaxSize()
                     .padding(paddingValues)
                     .background(Color.Transparent) // <-- make it transparent
-                // your linear gradient
             ) {
                 // Messages list
                 LazyColumn(
@@ -420,21 +446,17 @@ private fun ReflectionTopBar(
     currentQuestionNumber: Int,
     totalQuestions: Int
 ) {
-    // 1. Use Column as the main container for the header + progress bar
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            // Add padding for status bar if needed, and bottom padding
-            .padding(top = 8.dp, bottom = 0.dp) // No bottom padding here, progress bar handles it
+            .padding(top = 8.dp, bottom = 0.dp)
     ) {
-        // 2. Use Box to align back button and centered content
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(IntrinsicSize.Min) // Adjust height based on content
-                .padding(horizontal = 4.dp, vertical = 4.dp) // Padding around the content
+                .height(IntrinsicSize.Min)
+                .padding(horizontal = 4.dp, vertical = 4.dp)
         ) {
-            // Back Button
             IconButton(
                 onClick = onBackClick,
                 modifier = Modifier.align(Alignment.CenterStart)
@@ -446,7 +468,6 @@ private fun ReflectionTopBar(
                 )
             }
 
-            // Centered Content (Heart, Title, Subtitle)
             Column(
                 modifier = Modifier.align(Alignment.Center),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -472,21 +493,9 @@ private fun ReflectionTopBar(
                     )
                 }
             }
-        } // End of Box
-
-        // 3. Place Progress Bar *below* the Box
-//        LinearProgressIndicator(
-//            progress = { progress }, // Use lambda syntax for progress
-//            modifier = Modifier
-//                .fillMaxWidth()
-//                .height(6.dp),
-//            color = AccentPink,
-//            trackColor = MainPurple.copy(alpha = 0.3f) // Ensure track color contrasts slightly
-//        )
-    } // End of Column
+        }
+    }
 }
-
-
 
 @Composable
 private fun ReflectionInputArea(
@@ -499,11 +508,10 @@ private fun ReflectionInputArea(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp),
-        // ✅ Atur alignment Column jika perlu (misal: CenterHorizontally)
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Row(
-            verticalAlignment = Alignment.Bottom, // Jaga agar TextField dan Button rata bawah
+            verticalAlignment = Alignment.Bottom,
             modifier = Modifier.fillMaxWidth()
         ) {
             OutlinedTextField(
@@ -513,20 +521,14 @@ private fun ReflectionInputArea(
                     Text(placeholder, color = Color.White)
                 },
                 modifier = Modifier
-                    .weight(1f) // Biarkan TextField mengisi sisa ruang
+                    .weight(1f)
                     .padding(end = 8.dp),
                 shape = RoundedCornerShape(24.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color.White,
                     unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
-                    // ✅ Tambahkan textColor di sini
-                    focusedTextColor = Color.White, // Warna teks saat fokus
-                    unfocusedTextColor = Color.White // Warna teks saat tidak fokus
-                    // Mungkin perlu atur warna text color lain (cursor, dll)
-                    // cursorColor = Color.White,
-                    // focusedLabelColor = Color.White,
-                    // unfocusedLabelColor = Color.White.copy(alpha=0.7f)
-
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White
                 ),
                 maxLines = 4
             )
@@ -540,7 +542,7 @@ private fun ReflectionInputArea(
                     disabledContainerColor = Color.Gray.copy(alpha = 0.3f),
                     disabledContentColor = Color.White
                 ),
-                modifier = Modifier.size(48.dp) // Beri ukuran tetap agar bentuknya konsisten
+                modifier = Modifier.size(48.dp)
             ) {
                 Icon(Icons.Default.Send, contentDescription = "Send")
             }
@@ -550,9 +552,7 @@ private fun ReflectionInputArea(
             text = "💜 Your thoughts are safe and valued",
             fontSize = 12.sp,
             color = Color.White,
-            modifier = Modifier
-                // .align(Alignment.CenterHorizontally) // Tidak perlu karena Column sudah diatur
-                .padding(top = 8.dp)
+            modifier = Modifier.padding(top = 8.dp)
         )
     }
 }
@@ -644,7 +644,6 @@ private fun ReflectionSummary(
                 .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Success icon
             Box(
                 modifier = Modifier
                     .size(80.dp)
@@ -889,16 +888,3 @@ private fun generateAIReflection(session: ReflectionSession): String {
 
     return baseReflection + ending
 }
-
-//@Preview(showBackground = true)
-//@Composable
-//fun ReflectionScreenPreview() {
-//    ReflectionScreen(
-//        database = AppDatabase.getDatabase(LocalContext.current),
-//        entryId = "preview_entry",
-//        currentMood = "sad",
-//        onNavigateBack = {},
-//        onReflectionComplete = {},
-//        onFinishAndNavigate = {}
-//    )
-//}

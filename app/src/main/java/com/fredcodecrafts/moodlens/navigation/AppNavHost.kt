@@ -50,17 +50,19 @@ fun AppNavHost(
 
         // 🚨 UPDATE: Pass the navController to CameraScanScreen
         composable(Screen.CameraScan.route) {
-            CameraScanScreen(navController = navController)
+            CameraScanScreen(navController = navController, database = database)
         }
 
         composable(Screen.Journal.route) {
-            // NOTE: JournalScreen will need navController and database if it interacts with journal entries.
+            val context = LocalContext.current
+
             JournalScreen(
                 navController = navController,
-                context = LocalContext.current, // Get context here if needed
-                userId = "default_user" // Provide the userId if required by JournalScreen
+                userId = "default_user",
+                db = database
             )
         }
+
         composable(Screen.Insights.route) {
             InsightsScreen(navController = navController, database = database)
         }
@@ -113,9 +115,6 @@ fun AppNavHost(
                     }
                 }
             )
-        }
-        composable(Screen.UserDetail.route) {
-            UserDetailScreen(navController = navController, database = database)
         }
     }
 }

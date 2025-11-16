@@ -1,9 +1,23 @@
 package com.fredcodecrafts.moodlens.ui.screens
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.util.Log
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -12,34 +26,35 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.fredcodecrafts.moodlens.R
-import com.fredcodecrafts.moodlens.utils.rememberNotificationState
-import com.fredcodecrafts.moodlens.utils.GlobalNotificationHandler
-import kotlinx.coroutines.delay
-import kotlin.random.Random
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import com.fredcodecrafts.moodlens.database.AppDatabase
+import com.fredcodecrafts.moodlens.database.repository.JournalRepository
+import com.fredcodecrafts.moodlens.database.repository.MoodScanStatRepository
+import com.fredcodecrafts.moodlens.database.viewmodel.CameraScanViewModel
 import com.fredcodecrafts.moodlens.navigation.Screen
-
+import com.fredcodecrafts.moodlens.utils.GlobalNotificationHandler
+import com.fredcodecrafts.moodlens.utils.rememberNotificationState
+import kotlinx.coroutines.delay
 
 val purpleColor = Color(0xFF7B3FE4) // your purple
-
 
 @Composable
 fun CameraPreviewPlaceholder() {
@@ -71,6 +86,7 @@ fun CameraPreviewPlaceholder() {
         }
     }
 }
+
 @Composable
 fun MoodScanHeader(navController: NavHostController) {
     Box(
@@ -151,10 +167,12 @@ fun MoodScanHeader(navController: NavHostController) {
         }
     }
 }
+
 @Composable
 fun MoodCameraCard(
     isScanning: Boolean,
     scanProgress: Float,
+    hasCameraPermission: Boolean,
     modifier: Modifier = Modifier
 ) {
     val primaryGradient = Brush.linearGradient(listOf(Color(0xFF7B3FE4), Color(0xFFBB6BD9)))
@@ -166,83 +184,87 @@ fun MoodCameraCard(
             .aspectRatio(1f)
             .padding(16.dp),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent) // Made transparent
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
-        // Gradient background applied to the Box inside the Card
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(primaryGradient, RoundedCornerShape(24.dp)), // Apply gradient here
+                .background(primaryGradient, RoundedCornerShape(24.dp)),
             contentAlignment = Alignment.Center
         ) {
-            if (!isScanning) {
-                CameraPreviewPlaceholder()
-            } else {
-                val infiniteTransition = rememberInfiniteTransition(label = "Rotation") // Added label
-                val rotation by infiniteTransition.animateFloat(
-                    initialValue = 0f,
-                    targetValue = 360f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(1000, easing = LinearEasing),
-                        repeatMode = RepeatMode.Restart
-                    ), label = "Rotation Animation" // Added label
-                )
+            when {
+                !hasCameraPermission -> {
+                    CameraPreviewPlaceholder() // Show placeholder if no permission
+                }
+                !isScanning -> {
+                    CameraPreviewView(modifier = Modifier.fillMaxSize())
+                }
+                else -> {
+                    // Scanning animation
+                    val infiniteTransition = rememberInfiniteTransition()
+                    val rotation by infiniteTransition.animateFloat(
+                        initialValue = 0f,
+                        targetValue = 360f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(1000, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
+                        )
+                    )
 
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(80.dp)
-                            .background(Color.White.copy(alpha = 0.3f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(
                             modifier = Modifier
-                                .size(48.dp)
-                                .background(primaryGradient, CircleShape)
-                                .graphicsLayer { rotationZ = rotation },
-                            contentAlignment = Alignment.TopStart
+                                .size(80.dp)
+                                .background(Color.White.copy(alpha = 0.3f), CircleShape),
+                            contentAlignment = Alignment.Center
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(12.dp)
-                                    .background(Color.White, CircleShape)
-                                    .align(Alignment.TopStart)
-                                    .offset(x = 4.dp, y = 4.dp)
-                            )
+                                    .size(48.dp)
+                                    .background(primaryGradient, CircleShape)
+                                    .graphicsLayer { rotationZ = rotation },
+                                contentAlignment = Alignment.TopStart
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .background(Color.White, CircleShape)
+                                        .align(Alignment.TopStart)
+                                        .offset(x = 4.dp, y = 4.dp)
+                                )
+                            }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "Analyzing your mood...",
-                        color = Color.White,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Analyzing your mood...",
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleMedium
+                        )
 
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.9f)
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color.White.copy(alpha = 0.2f))
-                    ) {
+                        Spacer(modifier = Modifier.height(8.dp))
                         Box(
                             modifier = Modifier
-                                .fillMaxHeight()
-                                .fillMaxWidth(scanProgress)
-                                .background(warmGradient, RoundedCornerShape(16.dp))
+                                .fillMaxWidth(0.9f)
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color.White.copy(alpha = 0.2f))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(scanProgress)
+                                    .background(warmGradient, RoundedCornerShape(16.dp))
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "${(scanProgress * 100).toInt()}%",
+                            color = Color.White.copy(alpha = 0.7f),
+                            style = MaterialTheme.typography.bodySmall
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "${(scanProgress * 100).toInt()}%",
-                        color = Color.White.copy(alpha = 0.7f),
-                        style = MaterialTheme.typography.bodySmall
-                    )
                 }
             }
         }
@@ -466,37 +488,145 @@ fun ScanActionButton(
     }
 }
 
+/**
+ * Camera preview composable using CameraX PreviewView.
+ * Keeps camera binding simple — ready for adding ImageAnalysis later for ML.
+ */
 @Composable
-fun CameraScanScreen(navController: NavHostController) {
+fun CameraPreviewView(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    AndroidView(
+        factory = { ctx ->
+            val previewView = PreviewView(ctx).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                // scaleType from PreviewView is available; default is FILL_CENTER
+            }
+
+            val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+
+            cameraProviderFuture.addListener({
+                try {
+                    val cameraProvider = cameraProviderFuture.get()
+
+                    val preview = Preview.Builder().build().also { p ->
+                        p.setSurfaceProvider(previewView.surfaceProvider)
+                    }
+
+                    val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+
+                    cameraProvider.unbindAll()
+                    cameraProvider.bindToLifecycle(
+                        lifecycleOwner,
+                        cameraSelector,
+                        preview
+                    )
+                } catch (e: Exception) {
+                    Log.e("CameraPreviewView", "Failed to bind camera use cases", e)
+                }
+            }, ContextCompat.getMainExecutor(ctx))
+
+            previewView
+        },
+        modifier = modifier
+    )
+}
+
+/**
+ * Request camera permission and call onGranted when permission is available.
+ */
+@Composable
+fun RequestCameraPermission(onGranted: () -> Unit) {
+    val context = LocalContext.current
+    var permissionRequested by remember { mutableStateOf(false) }
+
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) onGranted()
+    }
+
+    // 🔥 Run permission request AFTER the UI is drawn (guarantees popup shows)
+    LaunchedEffect(Unit) {
+        if (!permissionRequested) {
+            permissionRequested = true
+            launcher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+}
+
+
+
+/**
+ * Full CameraScanScreen integrated with CameraScanViewModel, CameraX preview, and DB repositories.
+ *
+ * NOTE: This file assumes you have an AppDatabase.getInstance(context) method that returns your Room database.
+ * If your app exposes the DB differently, replace the getInstance call below with your method.
+ */
+@Composable
+fun CameraScanScreen(
+    navController: NavHostController,
+    database: AppDatabase // <-- ✅ DB passed from outside
+) {
     val notificationState = rememberNotificationState()
-    var detectedEmotion by remember { mutableStateOf<String?>(null) }
-    var isAnalyzing by remember { mutableStateOf(false) }
-    var scanProgress by remember { mutableStateOf(0f) }
+    val context = LocalContext.current
 
-    // Simulate scanning
-    LaunchedEffect(isAnalyzing) {
-        if (isAnalyzing) {
-            scanProgress = 0f
-            repeat(20) {
-                delay(75)
-                scanProgress += 0.05f
-            }
+    // Create repositories from your existing DB
+    val journalRepo = remember {
+        JournalRepository(
+            database.journalDao(),
+            database.notesDao(),
+            database.messagesDao(),
+            database.moodScanStatDao()
+        )
+    }
 
-            val emotions = when (Random.nextInt(100)) {
-                in 0..30 -> "happy"
-                in 31..50 -> "neutral"
-                in 51..70 -> "calm"
-                in 71..85 -> "sad"
-                in 86..95 -> "excited"
-                else -> "tired"
-            }
-            detectedEmotion = emotions
-            isAnalyzing = false
+    val statsRepo = remember {
+        MoodScanStatRepository(database.moodScanStatDao())
+    }
 
+    // Provide your userId
+    val userId = remember { "default_user" }  // TODO replace with real user
+
+    // Create ViewModel via Factory
+    val viewModel: CameraScanViewModel = viewModel(
+        factory = CameraScanViewModel.Factory(
+            journalRepo,
+            statsRepo,
+            userId
+        )
+    )
+
+    // Collect UI state from ViewModel
+    val detectedEmotion by viewModel.detectedEmotion.collectAsState()
+    val isScanning by viewModel.isScanning.collectAsState()
+    val scanProgress by viewModel.scanProgress.collectAsState()
+
+    // Permission flow
+    var permissionGranted by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                    PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    if (!permissionGranted) {
+        RequestCameraPermission(onGranted = { permissionGranted = true })
+        GlobalNotificationHandler(state = notificationState)
+        return
+    }
+
+    // Notification when scan is done
+    LaunchedEffect(detectedEmotion) {
+        detectedEmotion?.let { em ->
             notificationState.showNotification(
                 com.fredcodecrafts.moodlens.utils.NotificationData(
                     title = "Analysis Complete",
-                    message = "Detected: ${emotions.replaceFirstChar { it.uppercase() }}",
+                    message = "Detected: ${em.replaceFirstChar { it.uppercase() }}",
                     type = com.fredcodecrafts.moodlens.utils.NotificationType.SUCCESS,
                     duration = 3000L
                 )
@@ -511,40 +641,42 @@ fun CameraScanScreen(navController: NavHostController) {
         contentAlignment = Alignment.TopCenter
     ) {
         if (detectedEmotion == null) {
-            // Show camera + scan button while scanning/not scanned
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 MoodScanHeader(navController = navController)
+
                 MoodCameraCard(
-                    isScanning = isAnalyzing,
-                    scanProgress = scanProgress
+                    isScanning = isScanning,
+                    scanProgress = scanProgress,
+                    hasCameraPermission = permissionGranted
+
                 )
+
                 ScanActionButton(
-                    showCameraPreview = !isAnalyzing,
-                    onStartScan = { isAnalyzing = true },
-                    onNewScan = {
-                        detectedEmotion = null
-                        scanProgress = 0f
-                        isAnalyzing = false
-                    }
+                    showCameraPreview = !isScanning,
+                    onStartScan = { viewModel.startScan() },
+                    onNewScan = { viewModel.resetScan() }
                 )
             }
         } else {
-            // Overwrite everything with the result
             MoodResultSection(
                 mood = detectedEmotion!!,
                 onContinue = {
-                    // Navigate to Home
                     navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.CameraScan.route) { inclusive = true } // remove CameraScan from backstack
+                        popUpTo(Screen.CameraScan.route) { inclusive = true }
                     }
                 },
-                onReflect = {    navController.navigate(Screen.Reflection.createRoute(entryId = "new_scan", mood = detectedEmotion!!)) {
-                    popUpTo(Screen.CameraScan.route) { inclusive = true } // remove CameraScan from backstack
-                }
-
+                onReflect = {
+                    navController.navigate(
+                        Screen.Reflection.createRoute(
+                            entryId = "new_scan",
+                            mood = detectedEmotion!!
+                        )
+                    ) {
+                        popUpTo(Screen.CameraScan.route) { inclusive = true }
+                    }
                 }
             )
         }
@@ -552,4 +684,3 @@ fun CameraScanScreen(navController: NavHostController) {
 
     GlobalNotificationHandler(state = notificationState)
 }
-

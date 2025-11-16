@@ -1,0 +1,62 @@
+package com.fredcodecrafts.moodlens.database.repository
+
+import com.fredcodecrafts.moodlens.database.dao.JournalDao
+import com.fredcodecrafts.moodlens.database.dao.MessagesDao
+import com.fredcodecrafts.moodlens.database.dao.NotesDao
+import com.fredcodecrafts.moodlens.database.dao.MoodScanStatDao
+import com.fredcodecrafts.moodlens.database.entities.JournalEntry
+import com.fredcodecrafts.moodlens.database.entities.MoodScanStat
+import com.fredcodecrafts.moodlens.database.entities.Note
+
+class JournalRepository(
+    private val journalDao: JournalDao,
+    private val notesDao: NotesDao,
+    private val messagesDao: MessagesDao,
+    private val moodStatsDao: MoodScanStatDao
+) {
+
+    // ------------------- JOURNAL -------------------
+    suspend fun insertEntry(entry: JournalEntry) = journalDao.insert(entry)
+
+    suspend fun insertEntries(entries: List<JournalEntry>) = journalDao.insertAll(entries)
+
+    suspend fun getAllEntries() = journalDao.getAllEntries()
+
+    suspend fun getEntriesForUser(userId: String) = journalDao.getEntriesForUser(userId)
+
+    suspend fun getEntryById(entryId: String) = journalDao.getEntryById(entryId)
+
+    suspend fun deleteEntry(entryId: String) {
+        notesDao.deleteNotesByEntryId(entryId)
+        journalDao.deleteEntry(entryId)
+    }
+
+
+    // -------------------- NOTES ---------------------
+    suspend fun getNotesForEntry(entryId: String): List<Note> =
+        notesDao.getNotesForEntry(entryId)
+
+    suspend fun getAllNotes(): List<Note> =
+        notesDao.getAllNotes()
+
+    suspend fun insertNote(note: Note) =
+        notesDao.insert(note)
+
+
+    // -------------------- MOOD SCAN STATS ---------------------
+    suspend fun getAllMoodStats(): List<MoodScanStat> =
+        moodStatsDao.getAllStats()
+
+    suspend fun getMoodStatsForUserOnDate(userId: String, date: Long): MoodScanStat? =
+        moodStatsDao.getStatForUserOnDate(userId, date)
+
+    suspend fun insertMoodStat(stat: MoodScanStat) =
+        moodStatsDao.insert(stat)
+
+    suspend fun insertMoodStats(stats: List<MoodScanStat>) =
+        moodStatsDao.insertAll(stats)
+
+
+    // -------------------- MESSAGES (OPTIONAL) ---------------------
+    // Add message-related functions when needed
+}

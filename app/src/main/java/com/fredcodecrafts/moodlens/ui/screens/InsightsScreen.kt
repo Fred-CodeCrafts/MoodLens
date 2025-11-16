@@ -15,12 +15,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.fredcodecrafts.moodlens.database.AppDatabase
 import com.fredcodecrafts.moodlens.database.entities.JournalEntry
 import com.fredcodecrafts.moodlens.database.entities.Note
 import com.fredcodecrafts.moodlens.database.entities.MoodScanStat
-import com.fredcodecrafts.moodlens.database.DummyData
+import com.fredcodecrafts.moodlens.database.repository.JournalRepository
+import com.fredcodecrafts.moodlens.database.viewmodel.InsightsViewModel
+import com.fredcodecrafts.moodlens.database.viewmodel.InsightsViewModelFactory
+import com.fredcodecrafts.moodlens.database.viewmodel.InsightsData
 import com.fredcodecrafts.moodlens.navigation.Screen
 import com.fredcodecrafts.moodlens.ui.theme.*
 import kotlinx.coroutines.Dispatchers
@@ -32,41 +36,33 @@ fun InsightsScreen(
     navController: NavHostController,
     database: AppDatabase
 ) {
-    var journalEntries by remember { mutableStateOf<List<JournalEntry>>(emptyList()) }
-    var notes by remember { mutableStateOf<List<Note>>(emptyList()) }
-    var moodStats by remember { mutableStateOf<List<MoodScanStat>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
+    // Provide a sensible default user id — replace with real auth user id
+    val userId = "default_user_id"
 
-    LaunchedEffect(Unit) {
-        try {
-            val journalData = database.journalDao().getAllEntries()
-            val notesData = database.notesDao().getAllNotes()
-            val statsData = database.moodScanStatDao().getAllStats()
-
-            journalEntries = journalData.ifEmpty { DummyData.journalEntries }
-            notes = notesData.ifEmpty { DummyData.notes }
-            moodStats = statsData.ifEmpty { DummyData.moodScanStats }
-        } catch (e: Exception) {
-            journalEntries = DummyData.journalEntries
-            notes = DummyData.notes
-            moodStats = DummyData.moodScanStats
-        }
-        isLoading = false
+    // Create repository and viewmodel factory (adapt if your JournalRepository constructor differs)
+    val repository = remember {
+        JournalRepository(
+            journalDao = database.journalDao(),
+            notesDao = database.notesDao(),
+            messagesDao = database.messagesDao(),
+            moodStatsDao = database.moodScanStatDao()
+        )
     }
+    val factory = remember { InsightsViewModelFactory(repository, userId) }
 
-    // Background computation for insights
-    val insightsDataState = produceState(
-        initialValue = createDemoInsightsData().copy(wellnessScore = 50),
-        key1 = journalEntries,
-        key2 = notes,
-        key3 = moodStats
-    ) {
-        value = withContext(Dispatchers.Default) {
-            calculateInsights(journalEntries, notes, moodStats)
-        }
-    }
+    val viewModel: InsightsViewModel = viewModel(factory = factory)
 
-    val insightsData = insightsDataState.value
+    // collect state from viewmodel
+    val insightsState by viewModel.insights.collectAsState()
+    val journalEntries by viewModel.journalEntries.collectAsState()
+    val notes by viewModel.notes.collectAsState()
+    val moodStats by viewModel.moodStats.collectAsState()
+
+    // use isLoading flag only for UI shimmer; here we consider empty = loading until viewmodel updates
+    val isLoading = remember { derivedStateOf { insightsState == null } }
+
+    // The original UI is preserved below; it now reads from insightsState (type InsightsData)
+    val insightsData: InsightsData = insightsState ?: InsightsData()
 
     LazyColumn(
         modifier = Modifier
@@ -409,77 +405,4 @@ fun getTipIcon(tip: String): String = when {
     tip.contains("notes", ignoreCase = true) || tip.contains("note", ignoreCase = true) -> "📝"
     tip.contains("breathing", ignoreCase = true) -> "🧘"
     else -> "💡"
-}
-
-data class InsightsData(
-    val mostCommonMood: String?,
-    val mostCommonMoodCount: Int,
-    val wellnessScore: Int,
-    val weeklyCheckins: Int,
-    val weeklyNotes: Int,
-    val moodDistribution: Map<String, Int>,
-    val personalizedTips: List<String>
-)
-
-// ✅ Insights calculation (background thread safe)
-private fun calculateInsights(
-    journalEntries: List<JournalEntry>,
-    notes: List<Note>,
-    moodStats: List<MoodScanStat>
-): InsightsData {
-    if (journalEntries.isEmpty()) return createDemoInsightsData()
-
-    val oneWeekAgo = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(7)
-    val weeklyEntries = journalEntries.filter { it.timestamp >= oneWeekAgo }
-
-    val moodCounts = journalEntries.groupingBy { it.mood }.eachCount()
-    val mostCommonMood = moodCounts.maxByOrNull { it.value }
-
-    // Wellness score from mood impact values
-    val totalImpact = journalEntries.sumOf { getMoodProfile(it.mood).score }
-    val normalizedScore =
-        ((totalImpact + (journalEntries.size * 10)) * 100) / (journalEntries.size * 20)
-    val wellnessScore = normalizedScore.coerceIn(0, 100)
-
-    val weeklyCheckins = weeklyEntries.size
-    val weeklyNotes = weeklyEntries.count { entry -> notes.any { it.entryId == entry.entryId } }
-
-    val moodDistribution = moodCounts.entries.sortedByDescending { it.value }.associate { it.key to it.value }
-
-    val entriesWithNotes = journalEntries.count { journalEntry ->
-        notes.any { it.entryId == journalEntry.entryId }
-    }
-    val personalizedTips = generatePersonalizedTips(journalEntries, wellnessScore, entriesWithNotes)
-
-    return InsightsData(
-        mostCommonMood = mostCommonMood?.key?.replaceFirstChar { it.uppercase() },
-        mostCommonMoodCount = mostCommonMood?.value ?: 0,
-        wellnessScore = wellnessScore,
-        weeklyCheckins = weeklyCheckins,
-        weeklyNotes = weeklyNotes,
-        moodDistribution = moodDistribution.mapKeys { it.key.replaceFirstChar { c -> c.uppercase() } },
-        personalizedTips = personalizedTips
-    )
-}
-
-private fun createDemoInsightsData(): InsightsData = InsightsData(
-    mostCommonMood = "Happy",
-    mostCommonMoodCount = 3,
-    wellnessScore = 50,
-    weeklyCheckins = 5,
-    weeklyNotes = 1,
-    moodDistribution = mapOf("Happy" to 3, "Sad" to 2, "Calm" to 1),
-    personalizedTips = listOf("Regular mood tracking helps build self-awareness.")
-)
-
-private fun generatePersonalizedTips(
-    journalEntries: List<JournalEntry>,
-    wellnessScore: Int,
-    entriesWithNotes: Int
-): List<String> {
-    val tips = mutableListOf<String>()
-    if (wellnessScore < 30) tips.add("Consider adding more stress-relief activities to your daily routine.")
-    if (entriesWithNotes < journalEntries.size / 2) tips.add("Adding notes to your moods helps identify patterns.")
-    if (tips.isEmpty()) tips.add("Regular mood tracking helps build self-awareness.")
-    return tips.take(3)
 }

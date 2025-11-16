@@ -34,14 +34,11 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.fredcodecrafts.moodlens.components.*
 import com.fredcodecrafts.moodlens.database.AppDatabase
-import com.fredcodecrafts.moodlens.database.DummyData
 import com.fredcodecrafts.moodlens.database.entities.JournalEntry
 import com.fredcodecrafts.moodlens.database.entities.Note
 import com.fredcodecrafts.moodlens.navigation.Screen
 import com.fredcodecrafts.moodlens.ui.theme.*
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 import androidx.compose.ui.geometry.Offset
@@ -49,7 +46,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.ui.graphics.graphicsLayer
-
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.collectAsState
+import com.fredcodecrafts.moodlens.database.repository.JournalRepository
+import com.fredcodecrafts.moodlens.database.viewmodel.JournalViewModel
 
 private fun formatTimestampToDate(timestamp: Long): String {
     val entryCalendar = Calendar.getInstance().apply { timeInMillis = timestamp }
@@ -87,75 +87,61 @@ private fun getEmojiForMood(mood: String): String = when (mood.lowercase()) {
 @Composable
 fun JournalScreen(
     navController: NavController,
-    context: Context,
+    db: AppDatabase, // Accept AppDatabase so Screen doesn't call DAOs directly
     userId: String = "default_user"
 ) {
+    // Keep UI-level local state (selected entry, adding note UI state, input text)
     var entryToDelete by remember { mutableStateOf<JournalEntry?>(null) }
-
-    // ✅ FIX: Inisialisasi semua state langsung dari DummyData.
-    var entries by remember { mutableStateOf(DummyData.journalEntries) }
-    var notesMap by remember { mutableStateOf(DummyData.notes.groupBy { it.entryId }) }
-    var stats by remember {
-        mutableStateOf(
-            JournalStats(
-                totalEntries = DummyData.journalEntries.size,
-                withNotes = DummyData.notes.groupBy { it.entryId }.keys.size,
-                daysTracked = DummyData.journalEntries.map { formatTimestampToDate(it.timestamp) }.distinct().size
-            )
-        )
-    }
-    val db = AppDatabase.getDatabase(context)
-    val journalDao = db.journalDao()
-    val notesDao = db.notesDao()
     var selectedEntryId by remember { mutableStateOf<String?>(null) }
     var isAddingNote by remember { mutableStateOf(false) }
     var noteText by remember { mutableStateOf("") }
-    // ✅ FIX: isLoading tidak lagi diperlukan, selalu false.
-    val isLoading by remember { mutableStateOf(false) }
-    val latestEntry = entries.firstOrNull()
-    val scope = rememberCoroutineScope()
 
+    // Build repository and ViewModel via its Factory
+    val repository = remember { JournalRepository(db.journalDao(), db.notesDao(), db.messagesDao(), db.moodScanStatDao()) }
+    val viewModel: JournalViewModel = viewModel(
+        factory = JournalViewModel.Factory(repository, userId)
+    )
 
-    // ✅ FIX: LaunchedEffect yang mengakses database DIHAPUS.
+    // Observe ViewModel state
+    val entries by viewModel.entries.collectAsState()
+    val notesMap by viewModel.notesMap.collectAsState()
+    val loading by viewModel.loading.collectAsState()
 
-    // ✅ FIX: Fungsi onSaveNote sekarang HANYA mengubah state lokal.
-    val onSaveNote: () -> Unit = {
-        if (noteText.isNotBlank() && selectedEntryId != null) {
-            val newNote = Note(
-                noteId = "note_${System.currentTimeMillis()}",
-                entryId = selectedEntryId!!,
-                content = noteText
-            )
-
-            // 1. Update UI state immediately for responsiveness
-            val updatedNotes = notesMap[selectedEntryId]?.toMutableList() ?: mutableListOf()
-            updatedNotes.add(newNote)
-            notesMap = notesMap.toMutableMap().apply { put(selectedEntryId!!, updatedNotes) }
-            stats = stats.copy(withNotes = notesMap.values.count { it.isNotEmpty() })
-
-            // 2. ✅ Save the new note to the database in the background
-            scope.launch(Dispatchers.IO) {
-                notesDao.insert(newNote)
-                // Optional: You could reload all data here, but updating
-                // the local state might be enough if LaunchedEffect reloads
-                // correctly when navigating back.
-                // withContext(Dispatchers.Main) { loadData() } // Example if you have loadData()
-            }
-
-            // 3. Reset input fields
-            isAddingNote = false
-            noteText = ""
+    // Compute journal stats locally from entries & notesMap (UI-only derived)
+    val stats by remember(entries, notesMap) {
+        derivedStateOf {
+            val total = entries.size
+            val withNotesCount = notesMap.values.count { it.isNotEmpty() }
+            val daysTracked = entries.map { formatTimestampToDate(it.timestamp) }.distinct().size
+            JournalStats(totalEntries = total, withNotes = withNotesCount, daysTracked = daysTracked)
         }
     }
 
-    // ✅ FIX: Fungsi onDeleteEntry sekarang HANYA mengubah state lokal.
-    val onDeleteEntry: (JournalEntry) -> Unit = { entry ->
-        entries = entries.filter { it.entryId != entry.entryId }
-        notesMap = notesMap.toMutableMap().apply { remove(entry.entryId) }
-        stats = stats.copy(totalEntries = entries.size)
+    val scope = rememberCoroutineScope()
+
+    // Save note: call ViewModel, update UI state locally
+    val onSaveNote: () -> Unit = {
+        if (noteText.isNotBlank() && selectedEntryId != null) {
+            // Ask ViewModel to persist
+            viewModel.addNote(selectedEntryId!!, noteText)
+
+            // Optimistic UI update (ViewModel will also update notesMap; this keeps UI snappy)
+            // but we also clear the input and hide add note UI
+            isAddingNote = false
+            noteText = ""
+            selectedEntryId = null
+        }
     }
 
-    // Dialog konfirmasi hapus
+    // Delete entry: call ViewModel
+    val onDeleteEntry: (JournalEntry) -> Unit = { entry ->
+        // Optimistic UI update removed here because ViewModel exposes entries already;
+        // but keep a local optimistic filter to keep UX snappy while ViewModel completes
+        // (ViewModel will update entries flow)
+        viewModel.deleteEntry(entry.entryId)
+    }
+
+    // Confirm deletion dialog
     if (entryToDelete != null) {
         AlertDialog(
             onDismissRequest = { entryToDelete = null },
@@ -174,22 +160,23 @@ fun JournalScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        JournalHeader( navController = navController )
+        JournalHeader(navController = navController)
 
         when {
-            isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            loading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MainPurple)
             }
             entries.isEmpty() -> EmptyJournalView {
-                // Untuk testing, kita bisa buat tombol ini memuat ulang data dummy
-                entries = DummyData.journalEntries
-                notesMap = DummyData.notes.groupBy { it.entryId }
+                // Provide a way to reload data manually
+                scope.launch {
+                    viewModel.refreshAll()
+                }
             }
             else -> {
-                // ✅ FIX: Semua konten sekarang berada di dalam LazyColumn
+                val latestEntry = entries.firstOrNull()
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp,end = 16.dp, bottom = 16.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
                 ) {
                     item {
                         StatsCard(stats = stats)
@@ -213,6 +200,7 @@ fun JournalScreen(
                                 onCancelClick = {
                                     isAddingNote = false
                                     noteText = ""
+                                    selectedEntryId = null
                                 }
                             )
                         }
@@ -221,9 +209,9 @@ fun JournalScreen(
                     items(items = entries, key = { it.entryId }) { entry ->
                         JournalEntryCard(
                             entry = entry,
-                            // ✅ 3. KIRIM DATA NOTES DARI SINI
                             notes = notesMap[entry.entryId] ?: emptyList(),
                             onClick = {
+                                // Navigate to Reflection screen route
                                 navController.navigate(Screen.Reflection.createRoute(entry.entryId, entry.mood))
                             },
                             onLongClick = {
@@ -237,7 +225,7 @@ fun JournalScreen(
     }
 }
 
-// -- Supporting Composables --
+// -- Supporting Composables (kept unchanged) --
 
 @Composable
 fun JournalHeader(navController: NavController) {
@@ -280,7 +268,6 @@ fun JournalHeader(navController: NavController) {
         Spacer(modifier = Modifier.width(48.dp))
     }
 }
-
 
 @Composable
 fun StatsCard(stats: JournalStats) {
@@ -449,7 +436,6 @@ fun JournalEntryCard(
                             text = entry.location ?: "No location",
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextSecondary,
-//                            fontSize = 18.sp
                         )
                     }
                 }
@@ -537,7 +523,6 @@ fun AddNoteButton(onClick: () -> Unit) {
     }
 }
 
-
 @Composable
 fun AddNoteCard(
     noteText: String,
@@ -583,38 +568,30 @@ fun AddNoteCard(
                 Button(
                     onClick = onSaveClick,
                     enabled = noteText.isNotBlank(),
-                    // 1. Buat warna asli Button menjadi transparan
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.Transparent,
-                        // Atur warna teks agar kontras dengan gradient (misal: putih)
                         contentColor = Color.White,
-                        // Atur warna saat disabled jika perlu (opsional)
                         disabledContainerColor = Color.Transparent,
-                        disabledContentColor = Color.White.copy(alpha = 0.5f) // Teks jadi redup
+                        disabledContentColor = Color.White.copy(alpha = 0.5f)
                     ),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier
-                        // 2. Gambar gradient di background modifier
                         .background(
                             brush = GradientPrimary,
-                            shape = RoundedCornerShape(8.dp) // Pastikan shape sama
+                            shape = RoundedCornerShape(8.dp)
                         )
-                        // 3. (Opsional) Tambahkan efek visual saat disabled
                         .then(
                             if (!noteText.isNotBlank()) Modifier.graphicsLayer(alpha = 0.5f) else Modifier
                         )
 
                 ) {
-                    Text(
-                        "Save",
-                        // Warna teks sekarang diatur di ButtonDefaults.buttonColors
-                        // color = if (noteText.isNotBlank()) Color.White else Color.White.copy(alpha = 0.5f)
-                    )
+                    Text("Save")
                 }
             }
         }
     }
 }
+
 @Composable
 fun ReflectionCard(
     reflectionText: String,
@@ -667,11 +644,23 @@ fun ReflectionCard(
         }
     }
 }
+
 @Preview(showBackground = true)
 @Composable
 fun JournalEntryCardPreview() {
-    val dummyEntry = DummyData.journalEntries.first()
-    val dummyNotes = DummyData.notes.filter { it.entryId == dummyEntry.entryId }
+    // Inline dummy entry and note for preview (no DummyData and no DB access)
+    val dummyEntry = JournalEntry(
+        entryId = "preview-1",
+        userId = "preview-user",
+        mood = "happy",
+        timestamp = System.currentTimeMillis(),
+        location = "Jakarta",
+        aiReflection = "You did great today!"
+    )
+    val dummyNotes = listOf(
+        Note(noteId = "n1", entryId = dummyEntry.entryId, content = "Felt good after coffee"),
+        Note(noteId = "n2", entryId = dummyEntry.entryId, content = "Walked 20 minutes")
+    )
     MoodLensTheme {
         JournalEntryCard(
             entry = dummyEntry,
@@ -681,71 +670,82 @@ fun JournalEntryCardPreview() {
         )
     }
 }
+
 @Preview(
     showBackground = true,
     backgroundColor = 0xFFF8F9FA, // Warna background sesuai Column utama
-    name = "Journal Screen Full Preview (Dummy Data)"
+    name = "Journal Screen Full Preview (Inline Dummy Data)"
 )
 @Composable
 fun JournalScreenFullPreview() {
-    // 1. Siapkan semua state menggunakan DummyData
-    val dummyEntries = DummyData.journalEntries
-    val dummyNotesMap = DummyData.notes.groupBy { it.entryId }
+    // Inline preview data (no DB access)
+    val dummyEntries = listOf(
+        JournalEntry(
+            entryId = "e1",
+            userId = "u1",
+            mood = "happy",
+            timestamp = System.currentTimeMillis(),
+            location = "Jakarta",
+            aiReflection = "Keep it up!"
+        ),
+        JournalEntry(
+            entryId = "e2",
+            userId = "u1",
+            mood = "anxious",
+            timestamp = System.currentTimeMillis() - 86_400_000L,
+            location = null,
+            aiReflection = null
+        )
+    )
+    val dummyNotes = listOf(
+        Note(noteId = "n1", entryId = "e1", content = "Had a good meeting"),
+    )
+    val dummyNotesMap = dummyNotes.groupBy { it.entryId }
     val dummyStats = JournalStats(
         totalEntries = dummyEntries.size,
         withNotes = dummyNotesMap.filterValues { it.isNotEmpty() }.size,
         daysTracked = dummyEntries.map { formatTimestampToDate(it.timestamp) }.distinct().size
     )
-    val navController = rememberNavController() // NavController dummy untuk preview
-
-    // State tambahan (opsional untuk preview, bisa diatur sesuai kebutuhan)
-    var selectedEntryId by remember { mutableStateOf<String?>(null) }
+    val navController = rememberNavController() // NavController dummy for preview
     var isAddingNote by remember { mutableStateOf(false) }
     var noteText by remember { mutableStateOf("") }
     val latestEntry = dummyEntries.firstOrNull()
 
-    // 2. Bungkus dengan Tema Aplikasi Anda
     MoodLensTheme {
-        // 3. Bangun ulang struktur UI JournalScreen
         Column(modifier = Modifier.fillMaxSize()) {
-            JournalHeader( navController = navController )
+            JournalHeader(navController = navController)
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp,end = 16.dp, bottom = 16.dp),
-                //verticalArrangement = Arrangement.spacedBy(4.dp)
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
             ) {
-                // Item 1: Kartu Statistik
                 item {
                     StatsCard(stats = dummyStats)
                 }
 
-                // Item 2: Tombol "Add Note" (jika kondisi terpenuhi)
                 if (latestEntry != null && dummyNotesMap[latestEntry.entryId].isNullOrEmpty() && !isAddingNote) {
                     item {
-                        AddNoteButton(onClick = { /* Aksi kosong di preview */ })
+                        AddNoteButton(onClick = { /* no-op in preview */ })
                     }
                 }
 
-                // Item 3: Kartu Input "Add Note" (jika isAddingNote true)
                 item {
-                    AnimatedVisibility(visible = isAddingNote) { // Atau set isAddingNote=true untuk melihatnya
+                    AnimatedVisibility(visible = isAddingNote) {
                         AddNoteCard(
                             noteText = noteText,
                             onNoteChange = { noteText = it },
-                            onSaveClick = { /* Aksi kosong */ },
-                            onCancelClick = { /* Aksi kosong */ }
+                            onSaveClick = { /* no-op */ },
+                            onCancelClick = { /* no-op */ }
                         )
                     }
                 }
 
-                // Item 4: Daftar Entri Jurnal
                 items(items = dummyEntries, key = { it.entryId }) { entry ->
                     JournalEntryCard(
                         entry = entry,
                         notes = dummyNotesMap[entry.entryId] ?: emptyList(),
-                        onClick = { /* Aksi kosong */ },
-                        onLongClick = { /* Aksi kosong */ }
+                        onClick = { /* no-op */ },
+                        onLongClick = { /* no-op */ }
                     )
                 }
             }

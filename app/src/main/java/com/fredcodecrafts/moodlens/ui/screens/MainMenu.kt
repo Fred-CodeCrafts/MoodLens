@@ -43,21 +43,33 @@ import androidx.compose.ui.draw.shadow
 import com.fredcodecrafts.moodlens.navigation.Screen
 import com.fredcodecrafts.moodlens.ui.theme.AppTypography
 
+// --- Added imports for ViewModel integration (only DB-related changes) ---
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fredcodecrafts.moodlens.database.repository.MoodScanStatRepository
+import com.fredcodecrafts.moodlens.database.viewmodel.MainMenuViewModel
+import com.fredcodecrafts.moodlens.database.viewmodel.MainMenuViewModelFactory
+import androidx.compose.runtime.collectAsState
+
 @Composable
 fun MainMenuScreen(
     navController: NavHostController,
     database: AppDatabase
 ) {
     val scope = rememberCoroutineScope()
-    var moodStat by remember { mutableStateOf<MoodScanStat?>(null) }
-    var isLoading by remember { mutableStateOf(true) }
 
-    // Fetch user stats
-    LaunchedEffect(Unit) {
-        val stats = database.moodScanStatDao().getAllStats()
-        moodStat = stats.firstOrNull()
-        isLoading = false
-    }
+    // --- ViewModel-based data (replaces direct DAO call) ---
+    val viewModel: MainMenuViewModel = viewModel(
+        factory = MainMenuViewModelFactory(
+            MoodScanStatRepository(database.moodScanStatDao())
+        )
+    )
+
+    // Observe the StateFlow exposed by the ViewModel
+    val moodStat by viewModel.moodStat.collectAsState()
+
+    // If you want to keep an isLoading flag similar to the previous implementation,
+    // the ViewModel handles loading; here we keep a simple local flag set to false.
+    var isLoading by remember { mutableStateOf(false) }
 
     val dailyScans = moodStat?.dailyScans ?: 0
     val weekStreak = moodStat?.weekStreak ?: 0
@@ -81,8 +93,7 @@ fun MainMenuScreen(
                 style = MaterialTheme.typography.headlineMedium.copy(
                     fontWeight = FontWeight.Bold
                 ),
-                modifier = Modifier
-                    .graphicsLayer(alpha = 0.99f) // Needed for blend mode to work
+                modifier = Modifier.graphicsLayer(alpha = 0.99f) // Needed for blend mode to work
                     .drawWithCache {
                         val brush = GradientPrimary
                         onDrawWithContent {
@@ -196,15 +207,15 @@ fun MainMenuScreen(
             fontSize = MaterialTheme.typography.bodySmall.fontSize
         )
         // TEMPORARY TESTING BUTTON - REMOVE LATER
-       // Spacer(modifier = Modifier.height(16.dp))
-       // AppButton(
-       //     text = "TEST - Go to Insights",
-         //   onClick = { navController.navigate(Screen.Insights.route) },
+        // Spacer(modifier = Modifier.height(16.dp))
+        // AppButton(
+        //     text = "TEST - Go to Insights",
+        //   onClick = { navController.navigate(Screen.Insights.route) },
         //    modifier = Modifier
         //        .fillMaxWidth(),
         //    containerColor = Color.Red, // Make it stand out
         //    contentColor = Color.White
-    //    )
+        //    )
     }
 }
 
