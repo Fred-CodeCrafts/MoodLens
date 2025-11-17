@@ -51,9 +51,14 @@ dependencies {
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
 // Ktor client engine for Android
-    implementation("io.ktor:ktor-client-android:2.3.0")
-    implementation("io.ktor:ktor-client-content-negotiation:2.3.0")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.0")
+    implementation("io.ktor:ktor-client-core:2.3.7")
+    implementation("io.ktor:ktor-client-android:2.3.7")
+    implementation("io.ktor:ktor-client-okhttp:2.3.7")
+    implementation("io.ktor:ktor-client-content-negotiation:2.3.7")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.7")
+    implementation("io.ktor:ktor-client-logging:2.3.7")
+
+
 
 // Kotlin coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
@@ -71,8 +76,6 @@ dependencies {
 
 
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
-    implementation("io.ktor:ktor-client-okhttp:3.0.3")
-    // HTTP engine (Ktor)
     // Google Sign-In / Credentials API
     implementation("com.google.android.gms:play-services-auth:20.5.0")  // Google Sign-In
     // Kotlin Coroutines (for Flow)
