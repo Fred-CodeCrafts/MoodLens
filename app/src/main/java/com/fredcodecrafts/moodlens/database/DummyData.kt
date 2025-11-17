@@ -4,9 +4,9 @@ import com.fredcodecrafts.moodlens.database.entities.*
 import java.util.*
 
 object DummyData {
-
+/*
     val users = listOf(
-        User(userId = "user1", googleId = "google_123")
+        User(userId = "default_user")
     )
 
     val journalEntries = listOf(
@@ -89,4 +89,6 @@ object DummyData {
             canAccessInsights = true
         )
     )
+
+ */
 }

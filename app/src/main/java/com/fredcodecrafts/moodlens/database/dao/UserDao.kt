@@ -25,6 +25,9 @@ interface UserDao {
     @Query("SELECT * FROM users WHERE userId = :id")
     suspend fun getUserByIdRaw(id: String): User?
 
+    @Query("SELECT * FROM users WHERE googleId = :googleId")
+    suspend fun getUserByGoogleIdRaw(googleId: String): User?
+
     // --- Helper functions with XOR obfuscation ---
     suspend fun insertAll(users: List<User>) {
         val obfuscated = users.map {
@@ -46,6 +49,12 @@ interface UserDao {
 
     suspend fun getUserById(id: String): User? {
         return getUserByIdRaw(id)?.let {
+            it.copy(googleId = simpleXOR(it.googleId))
+        }
+    }
+
+    suspend fun getUserByGoogleId(googleId: String): User? {
+        return getUserByGoogleIdRaw(simpleXOR(googleId))?.let {
             it.copy(googleId = simpleXOR(it.googleId))
         }
     }

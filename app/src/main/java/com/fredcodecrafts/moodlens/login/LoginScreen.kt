@@ -1,10 +1,9 @@
 package com.fredcodecrafts.moodlens.login
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+
+import android.app.Activity
+import android.util.Log
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -19,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -26,9 +26,18 @@ import androidx.compose.ui.unit.dp
 import com.fredcodecrafts.moodlens.R
 import com.fredcodecrafts.moodlens.components.AppButton
 import com.fredcodecrafts.moodlens.components.AppCard
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import com.fredcodecrafts.moodlens.database.AppDatabase
+import com.fredcodecrafts.moodlens.database.entities.User
 import com.fredcodecrafts.moodlens.ui.theme.gradientPrimary
+import com.fredcodecrafts.moodlens.login.GoogleSignInHelper
+import com.fredcodecrafts.moodlens.login.AuthManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.util.*
+
+import android.util.Base64
+import org.json.JSONObject
 
 @Composable
 fun LoginScreen(
@@ -37,22 +46,34 @@ fun LoginScreen(
 ) {
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    // Safely get Activity from context
+    val activity = remember(context) {
+        generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }
+            .filterIsInstance<Activity>()
+            .firstOrNull()
+            ?: throw IllegalStateException("Composable not hosted in an Activity")
+    }
+
+    val googleHelper = remember { GoogleSignInHelper(activity) }
+    val supabaseAuth = remember { AuthManager() }
+    val userDao = AppDatabase.getDatabase(activity).userDao()
 
     // Rotation animation for spinner
-    val infiniteTransition = rememberInfiniteTransition(label = "spinner_rotation")
+    val infiniteTransition = rememberInfiniteTransition()
     val rotation by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
             animation = tween(800, easing = LinearEasing)
-        ),
-        label = "rotation_anim"
+        )
     )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(brush = gradientPrimary()), // <-- call the composable
+            .background(brush = gradientPrimary()),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -90,7 +111,6 @@ fun LoginScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // Main Card
             AppCard(
                 modifier = Modifier.fillMaxWidth(),
                 backgroundColor = Color.White.copy(alpha = 0.08f),
@@ -118,16 +138,45 @@ fun LoginScreen(
 
                     Spacer(Modifier.height(24.dp))
 
-                    // Google Sign-In Button with spinner in primary color
                     AppButton(
                         text = if (isLoading) "Signing in..." else "Continue with Google",
                         onClick = {
-                            scope.launch {
-                                isLoading = true
-                                delay(1500) // simulate login
-                                isLoading = false
-                                onLoginSuccess()
-                            }
+                            if (isLoading) return@AppButton
+                            isLoading = true
+
+                            googleHelper.launch(
+                                onSuccess = { idToken ->
+                                    val email = getGoogleUserEmail(idToken) ?: "unknown"
+                                    scope.launch {
+                                        val success = supabaseAuth.signInWithGoogle(idToken, email)
+                                        if (success) {
+                                            // Update/check local DB
+                                            CoroutineScope(Dispatchers.IO).launch {
+                                                var user = userDao.getUserByGoogleId(getGoogleUserId(idToken) ?: "")
+                                                if (user == null) {
+                                                    user = User(
+                                                        userId = UUID.randomUUID().toString(),
+                                                        googleId = getGoogleUserId(idToken) ?: ""
+                                                    )
+                                                    userDao.insert(user)
+                                                }
+
+                                                launch(Dispatchers.Main) {
+                                                    isLoading = false
+                                                    onLoginSuccess()
+                                                }
+                                            }
+                                        } else {
+                                            isLoading = false
+                                        }
+                                    }
+                                },
+                                onError = {
+                                    isLoading = false
+                                    Log.e("LoginScreen", "Google sign-in failed", it)
+                                }
+                            )
+
                         },
                         enabled = !isLoading,
                         modifier = Modifier.fillMaxWidth(),
@@ -179,3 +228,29 @@ fun LoginScreen(
         }
     }
 }
+
+
+fun getGoogleUserId(idToken: String): String? {
+    return try {
+        val parts = idToken.split(".")
+        if (parts.size < 2) return null
+        val payload = String(Base64.decode(parts[1], Base64.URL_SAFE))
+        val json = JSONObject(payload)
+        json.getString("sub") // unique Google user ID
+    } catch (e: Exception) {
+        null
+    }
+}
+
+fun getGoogleUserEmail(idToken: String): String? {
+    return try {
+        val parts = idToken.split(".")
+        if (parts.size < 2) return null
+        val payload = String(android.util.Base64.decode(parts[1], android.util.Base64.URL_SAFE))
+        val json = org.json.JSONObject(payload)
+        json.getString("email")
+    } catch (e: Exception) {
+        null
+    }
+}
+

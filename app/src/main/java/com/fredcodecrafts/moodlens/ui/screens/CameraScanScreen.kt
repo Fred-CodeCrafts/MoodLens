@@ -681,6 +681,5 @@ fun CameraScanScreen(
             )
         }
     }
-
     GlobalNotificationHandler(state = notificationState)
 }
