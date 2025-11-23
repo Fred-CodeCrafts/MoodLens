@@ -104,6 +104,8 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
 
+    implementation("org.tensorflow:tensorflow-lite:2.12.0")
+    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 
 // Coroutines (optional but recommended with Room)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
