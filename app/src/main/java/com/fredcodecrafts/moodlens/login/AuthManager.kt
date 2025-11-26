@@ -8,13 +8,14 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 class AuthManager {
 
     private val supabaseUrl = "https://cglkbjwuvmakmamkcfww.supabase.co"
-    private val supabaseKey = "YOUR_ANON_KEY_HERE"
+    private val supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNnbGtiand1dm1ha21hbWtjZnd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyOTM1ODYsImV4cCI6MjA3ODg2OTU4Nn0.Yt2I8ELwfUT3sKD9PEMy5JgNGAbhnZ_gCXRN-m2a5Y8" // Move to secure storage for production
 
     private val client = HttpClient(OkHttp) {
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -22,11 +23,11 @@ class AuthManager {
 
     suspend fun signInWithGoogle(idToken: String, email: String): Boolean {
         return try {
-            val tableUrl = "$supabaseUrl/rest/v1/users"
+            val tableUrl = "$supabaseUrl/rest/v1/app_users"
 
-            // Check user
+            // Check if user exists
             val existing = client.get(tableUrl) {
-                url { parameters.append("email", "eq.$email") }
+                url { parameters.append("user_id", "eq.$email") } // user_id stores email
                 header("apikey", supabaseKey)
                 header("Authorization", "Bearer $supabaseKey")
             }
@@ -36,7 +37,7 @@ class AuthManager {
                     header("apikey", supabaseKey)
                     header("Authorization", "Bearer $supabaseKey")
                     contentType(ContentType.Application.Json)
-                    setBody(User(email = email, googleIdToken = idToken))
+                    setBody(AppUser(userId = email, googleId = idToken))
                 }
                 Log.d("AuthManager", "Inserted new user: ${response.status}")
             } else {
@@ -50,8 +51,8 @@ class AuthManager {
     }
 
     @Serializable
-    data class User(
-        val email: String,
-        val googleIdToken: String
+    data class AppUser(
+        @SerialName("user_id") val userId: String,
+        @SerialName("google_id") val googleId: String
     )
 }

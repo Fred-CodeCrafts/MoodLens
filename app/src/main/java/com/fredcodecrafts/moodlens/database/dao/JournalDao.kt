@@ -10,6 +10,7 @@ import com.fredcodecrafts.moodlens.database.entities.JournalEntry
 interface JournalDao {
 
     // ✅ Insert or update a single entry
+    // (Room will automatically handle the new lat/long/locationName columns)
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entry: JournalEntry)
 
@@ -25,7 +26,11 @@ interface JournalDao {
     @Query("SELECT * FROM journal_entries WHERE userId = :userId ORDER BY timestamp DESC")
     suspend fun getEntriesForUser(userId: String): List<JournalEntry>
 
-    // ✅ Optional: Get a single entry by ID (useful for edit/detail)
+    // 🆕 NEW: Get only entries that have GPS coordinates (Useful for Map Views)
+    @Query("SELECT * FROM journal_entries WHERE userId = :userId AND latitude IS NOT NULL AND longitude IS NOT NULL ORDER BY timestamp DESC")
+    suspend fun getEntriesWithLocation(userId: String): List<JournalEntry>
+
+    // ✅ Optional: Get a single entry by ID
     @Query("SELECT * FROM journal_entries WHERE entryId = :entryId LIMIT 1")
     suspend fun getEntryById(entryId: String): JournalEntry?
 

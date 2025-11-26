@@ -24,9 +24,13 @@ class JournalRepository(
 
     suspend fun getEntriesForUser(userId: String) = journalDao.getEntriesForUser(userId)
 
+    // ✅ Added this to support Map features
+    suspend fun getEntriesWithLocation(userId: String) = journalDao.getEntriesWithLocation(userId)
+
     suspend fun getEntryById(entryId: String) = journalDao.getEntryById(entryId)
 
     suspend fun deleteEntry(entryId: String) {
+        // Deletes notes associated with the entry first to keep data clean
         notesDao.deleteNotesByEntryId(entryId)
         journalDao.deleteEntry(entryId)
     }
