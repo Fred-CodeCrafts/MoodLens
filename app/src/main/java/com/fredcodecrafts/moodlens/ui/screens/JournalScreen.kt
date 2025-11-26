@@ -433,7 +433,7 @@ fun JournalEntryCard(
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
-                            text = entry.location ?: "No location",
+                            text = entry.locationName ?: "No location",
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextSecondary,
                         )
@@ -654,7 +654,7 @@ fun JournalEntryCardPreview() {
         userId = "preview-user",
         mood = "happy",
         timestamp = System.currentTimeMillis(),
-        location = "Jakarta",
+        locationName = "Jakarta",
         aiReflection = "You did great today!"
     )
     val dummyNotes = listOf(
@@ -685,7 +685,7 @@ fun JournalScreenFullPreview() {
             userId = "u1",
             mood = "happy",
             timestamp = System.currentTimeMillis(),
-            location = "Jakarta",
+            locationName = "Jakarta",
             aiReflection = "Keep it up!"
         ),
         JournalEntry(
@@ -693,7 +693,7 @@ fun JournalScreenFullPreview() {
             userId = "u1",
             mood = "anxious",
             timestamp = System.currentTimeMillis() - 86_400_000L,
-            location = null,
+            locationName = null,
             aiReflection = null
         )
     )

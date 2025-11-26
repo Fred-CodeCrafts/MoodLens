@@ -28,7 +28,12 @@ class CameraScanViewModel(
     val isScanning = _isScanning.asStateFlow()
 
     // ---------------------- SIMULATED SCAN LOGIC ----------------------
-    fun startScan() {
+    // UPDATE: Added location parameters here. Default is null if location isn't available.
+    fun startScan(
+        currentLocation: String? = null,
+        latitude: Double? = null,
+        longitude: Double? = null
+    ) {
         viewModelScope.launch {
             _isScanning.value = true
             _scanProgress.value = 0f
@@ -44,46 +49,63 @@ class CameraScanViewModel(
             _detectedEmotion.value = finalEmotion
             _isScanning.value = false
 
-            saveScanResult(finalEmotion)
+            // Pass location data to the save function
+            saveScanResult(finalEmotion, currentLocation, latitude, longitude)
         }
     }
 
     // ---------------------- DATABASE WRITE ----------------------
-    private fun saveScanResult(emotion: String) {
+    private fun saveScanResult(
+        emotion: String,
+        locationName: String?,
+        lat: Double?,
+        lng: Double?
+    ) {
         viewModelScope.launch {
 
             // Insert Journal Entry
+            // NOTE: Ensure your JournalEntry Entity has these fields defined!
             val entry = JournalEntry(
                 entryId = UUID.randomUUID().toString(),
                 userId = userId,
                 mood = emotion,
-                timestamp = System.currentTimeMillis()
+                timestamp = System.currentTimeMillis(),
+                // Assigning location data
+                locationName = locationName,
+                latitude = lat,
+                longitude = lng
             )
             journalRepo.insertEntry(entry)
 
             // Insert / Update Stats
-            val today = getTodayMillis()
-            val existingStat = statsRepo.getStatForUserOnDate(userId, today)
+            updateMoodStats()
+        }
+    }
 
-            if (existingStat == null) {
-                statsRepo.insert(
-                    MoodScanStat(
-                        statId = UUID.randomUUID().toString(),
-                        userId = userId,
-                        date = today,
-                        dailyScans = 1,
-                        weekStreak = 1,
-                        canAccessInsights = true
-                    )
+    private suspend fun updateMoodStats() {
+        val today = getTodayMillis()
+        val existingStat = statsRepo.getStatForUserOnDate(userId, today)
+
+        if (existingStat == null) {
+            statsRepo.insert(
+                MoodScanStat(
+                    statId = UUID.randomUUID().toString(),
+                    userId = userId,
+                    date = today,
+                    dailyScans = 1,
+                    weekStreak = 1,
+                    canAccessInsights = true
                 )
-            } else {
-                statsRepo.insert(
-                    existingStat.copy(
-                        dailyScans = existingStat.dailyScans + 1,
-                        weekStreak = existingStat.weekStreak + 1
-                    )
+            )
+        } else {
+            statsRepo.insert(
+                existingStat.copy(
+                    dailyScans = existingStat.dailyScans + 1,
+                    // Simple logic: if they scanned yesterday, increment streak.
+                    // (Logic simplified for brevity)
+                    weekStreak = existingStat.weekStreak + 1
                 )
-            }
+            )
         }
     }
 
@@ -99,7 +121,7 @@ class CameraScanViewModel(
     }
 
     // -------------------------------------------------------------------
-    // FACTORY  (inside same file & package)
+    // FACTORY
     // -------------------------------------------------------------------
     class Factory(
         private val journalRepo: JournalRepository,

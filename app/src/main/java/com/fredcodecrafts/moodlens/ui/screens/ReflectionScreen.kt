@@ -321,7 +321,7 @@ fun ReflectionScreen(
                         userId = "unknown", // keep existing behavior; you may set a real user id upstream
                         mood = session.mood,
                         timestamp = session.startTime,
-                        location = null,
+                        locationName = null,
                         aiReflection = aiReflection
                     )
                     journalDao.insert(newEntry)
