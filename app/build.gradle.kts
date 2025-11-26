@@ -47,6 +47,8 @@ android {
 
 dependencies {
 
+    implementation("com.google.mlkit:face-detection:16.1.6")
+
 // Supabase Auth + PostgREST
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
@@ -109,6 +111,8 @@ dependencies {
 
     implementation("org.tensorflow:tensorflow-lite:2.12.0")
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
+
+    implementation("com.google.android.gms:play-services-location:21.1.0")
 
 // Coroutines (optional but recommended with Room)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")

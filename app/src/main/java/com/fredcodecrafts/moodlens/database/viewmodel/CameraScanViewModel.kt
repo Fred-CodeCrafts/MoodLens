@@ -27,8 +27,29 @@ class CameraScanViewModel(
     private val _isScanning = MutableStateFlow(false)
     val isScanning = _isScanning.asStateFlow()
 
+
+    // -------------------------------------------------------------------------
+    // EXTERNAL CONTROL FUNCTIONS FOR ANALYZER (NEW)
+    // -------------------------------------------------------------------------
+
+    /** Called from FaceEmotionAnalyzer — sets the emotion text */
+    fun setDetectedEmotion(emotion: String?) {
+        _detectedEmotion.value = emotion
+    }
+
+    /** Called from analyzer — updates progress circle */
+    fun setScanProgress(progress: Float) {
+        _scanProgress.value = progress
+    }
+
+    /** Called from analyzer — start/stop animation state */
+    fun setScanningActive(active: Boolean) {
+        _isScanning.value = active
+    }
+
+
+
     // ---------------------- SIMULATED SCAN LOGIC ----------------------
-    // UPDATE: Added location parameters here. Default is null if location isn't available.
     fun startScan(
         currentLocation: String? = null,
         latitude: Double? = null,
@@ -43,16 +64,15 @@ class CameraScanViewModel(
                 _scanProgress.value += 0.05f
             }
 
-            // TODO replace with MLKit or TensorFlow later
             val finalEmotion = listOf("happy", "sad", "anxious", "calm", "excited", "tired").random()
 
             _detectedEmotion.value = finalEmotion
             _isScanning.value = false
 
-            // Pass location data to the save function
             saveScanResult(finalEmotion, currentLocation, latitude, longitude)
         }
     }
+
 
     // ---------------------- DATABASE WRITE ----------------------
     private fun saveScanResult(
@@ -63,21 +83,17 @@ class CameraScanViewModel(
     ) {
         viewModelScope.launch {
 
-            // Insert Journal Entry
-            // NOTE: Ensure your JournalEntry Entity has these fields defined!
             val entry = JournalEntry(
                 entryId = UUID.randomUUID().toString(),
                 userId = userId,
                 mood = emotion,
                 timestamp = System.currentTimeMillis(),
-                // Assigning location data
                 locationName = locationName,
                 latitude = lat,
                 longitude = lng
             )
             journalRepo.insertEntry(entry)
 
-            // Insert / Update Stats
             updateMoodStats()
         }
     }
@@ -101,8 +117,6 @@ class CameraScanViewModel(
             statsRepo.insert(
                 existingStat.copy(
                     dailyScans = existingStat.dailyScans + 1,
-                    // Simple logic: if they scanned yesterday, increment streak.
-                    // (Logic simplified for brevity)
                     weekStreak = existingStat.weekStreak + 1
                 )
             )
@@ -119,6 +133,7 @@ class CameraScanViewModel(
         _scanProgress.value = 0f
         _isScanning.value = false
     }
+
 
     // -------------------------------------------------------------------
     // FACTORY

@@ -1,15 +1,19 @@
 package com.fredcodecrafts.moodlens.ui.screens
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.*
+import android.location.Geocoder
 import android.util.Log
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.Preview
+import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.core.LinearEasing
@@ -31,13 +35,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.*
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -52,10 +66,26 @@ import com.fredcodecrafts.moodlens.database.viewmodel.CameraScanViewModel
 import com.fredcodecrafts.moodlens.navigation.Screen
 import com.fredcodecrafts.moodlens.utils.GlobalNotificationHandler
 import com.fredcodecrafts.moodlens.utils.rememberNotificationState
+import com.google.android.gms.location.LocationServices
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.*
 import kotlinx.coroutines.delay
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.util.Locale
+import java.util.concurrent.Executors
+import kotlin.math.max
+import kotlin.math.min
+
+// ML imports (your existing classes)
+import com.fredcodecrafts.moodlens.ml.emotionPrediction.EmotionClassifier
+import com.fredcodecrafts.moodlens.ml.emotionPrediction.PredictionResult
 
 val purpleColor = Color(0xFF7B3FE4) // your purple
 
+// -------------------------
+// Your existing UI pieces (kept intact)
+// -------------------------
 @Composable
 fun CameraPreviewPlaceholder() {
     Box(
@@ -488,10 +518,9 @@ fun ScanActionButton(
     }
 }
 
-/**
- * Camera preview composable using CameraX PreviewView.
- * Keeps camera binding simple — ready for adding ImageAnalysis later for ML.
- */
+// -------------------------
+// Camera preview (original simple view kept for back-compat)
+// -------------------------
 @Composable
 fun CameraPreviewView(modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -503,41 +532,30 @@ fun CameraPreviewView(modifier: Modifier = Modifier) {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
-                // scaleType from PreviewView is available; default is FILL_CENTER
             }
-
             val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-
             cameraProviderFuture.addListener({
                 try {
                     val cameraProvider = cameraProviderFuture.get()
-
                     val preview = Preview.Builder().build().also { p ->
                         p.setSurfaceProvider(previewView.surfaceProvider)
                     }
-
                     val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
-
                     cameraProvider.unbindAll()
-                    cameraProvider.bindToLifecycle(
-                        lifecycleOwner,
-                        cameraSelector,
-                        preview
-                    )
+                    cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, preview)
                 } catch (e: Exception) {
                     Log.e("CameraPreviewView", "Failed to bind camera use cases", e)
                 }
             }, ContextCompat.getMainExecutor(ctx))
-
             previewView
         },
         modifier = modifier
     )
 }
 
-/**
- * Request camera permission and call onGranted when permission is available.
- */
+// -------------------------
+// Permission helpers (unchanged)
+// -------------------------
 @Composable
 fun RequestCameraPermission(onGranted: () -> Unit) {
     val context = LocalContext.current
@@ -545,32 +563,347 @@ fun RequestCameraPermission(onGranted: () -> Unit) {
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) onGranted()
-    }
+    ) { granted -> if (granted) onGranted() }
 
-    // 🔥 Run permission request AFTER the UI is drawn (guarantees popup shows)
     LaunchedEffect(Unit) {
         if (!permissionRequested) {
             permissionRequested = true
             launcher.launch(Manifest.permission.CAMERA)
         }
     }
+}
 
+// -------------------------
+// Location helpers (kept, note startScan signature uses currentLocation)
+// -------------------------
+fun hasLocationPermission(context: Context): Boolean {
+    return ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_COARSE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+}
+
+@SuppressLint("MissingPermission")
+fun fetchLocationAndStartScan(context: Context, viewModel: CameraScanViewModel) {
+    val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+
+    fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+        if (location != null) {
+            val lat = location.latitude
+            val lng = location.longitude
+
+            val address = try {
+                val geocoder = Geocoder(context, Locale.getDefault())
+                @Suppress("DEPRECATION")
+                val addresses = geocoder.getFromLocation(lat, lng, 1)
+                if (!addresses.isNullOrEmpty()) {
+                    addresses[0].locality ?: addresses[0].subAdminArea ?: "Unknown Location"
+                } else {
+                    "Unknown Location"
+                }
+            } catch (e: Exception) {
+                "Unknown Location"
+            }
+
+            // NOTE: uses your signature currentLocation
+            viewModel.startScan(currentLocation = address, latitude = lat, longitude = lng)
+        } else {
+            viewModel.startScan(null, null, null)
+        }
+    }.addOnFailureListener {
+        viewModel.startScan(null, null, null)
+    }
+}
+
+// -------------------------
+// ML: FaceDetectorHelper (ML Kit wrapper)
+// -------------------------
+
+@OptIn(androidx.camera.core.ExperimentalGetImage::class)
+class FaceDetectorHelper {
+    private val options = FaceDetectorOptions.Builder()
+        .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+        .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
+        .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
+        .enableTracking()
+        .build()
+
+    private val detector = FaceDetection.getClient(options)
+
+    /**
+     * Processes an ImageProxy and returns faces + InputImage.
+     * This function closes imageProxy in its completion block to avoid leaks.
+     */
+    fun process(imageProxy: ImageProxy, onResult: (faces: List<Face>, inputImage: InputImage) -> Unit) {
+        val mediaImage = imageProxy.image
+        if (mediaImage == null) {
+            imageProxy.close()
+            return
+        }
+        val rotation = imageProxy.imageInfo.rotationDegrees
+        val inputImage = InputImage.fromMediaImage(mediaImage, rotation)
+        detector.process(inputImage)
+            .addOnSuccessListener { faces ->
+                onResult(faces, inputImage)
+            }
+            .addOnFailureListener { t ->
+                Log.w("FaceDetectorHelper", "face detection fail", t)
+            }
+            .addOnCompleteListener {
+                imageProxy.close()
+            }
+    }
+}
+
+// -------------------------
+// ML: Bitmap ↔ ByteBuffer converter for quantized grayscale model
+// -------------------------
+fun bitmapToGrayscaleByteBuffer(bitmap: Bitmap, targetWidth: Int, targetHeight: Int): ByteBuffer {
+    val resized = if (bitmap.width != targetWidth || bitmap.height != targetHeight) {
+        Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
+    } else {
+        bitmap
+    }
+
+    val byteBuffer = ByteBuffer.allocateDirect(targetWidth * targetHeight)
+    byteBuffer.order(ByteOrder.nativeOrder())
+
+    val pixels = IntArray(targetWidth * targetHeight)
+    resized.getPixels(pixels, 0, targetWidth, 0, 0, targetWidth, targetHeight)
+
+    for (px in pixels) {
+        val r = (px shr 16) and 0xFF
+        val g = (px shr 8) and 0xFF
+        val b = px and 0xFF
+        val y = (0.299 * r + 0.587 * g + 0.114 * b).toInt()
+        byteBuffer.put((y and 0xFF).toByte())
+    }
+    byteBuffer.rewind()
+    return byteBuffer
+}
+
+// -------------------------
+// ML: FaceEmotionAnalyzer (detect face -> crop -> classify)
+// -------------------------
+class FaceEmotionAnalyzer(
+    private val context: Context,
+    private val classifier: EmotionClassifier,
+    private val inputWidth: Int = 48,
+    private val inputHeight: Int = 48,
+    private val onResult: (predictions: List<PredictionResult>?, imageSize: Size?, faceBoxInImage: Rect?) -> Unit
+) : ImageAnalysis.Analyzer {
+
+    private val faceHelper = FaceDetectorHelper()
+
+    override fun analyze(image: ImageProxy) {
+        // Use FaceDetectorHelper; it closes the imageProxy for us
+        faceHelper.process(image) { faces, inputImage ->
+            if (faces.isEmpty()) {
+                onResult(null, null, null)
+                return@process
+            }
+
+            // Use first face (tracked/closest)
+            val face = faces.first()
+            val box = face.boundingBox // in image pixel coordinates (InputImage's coordinate system)
+            // Try to extract bitmap from InputImage via reflection (pragmatic)
+            val bitmap = inputImageToBitmap(inputImage)
+            if (bitmap == null) {
+                // fallback: use mediaImage -> YUV -> Bitmap conversion could be implemented, but skip here
+                Log.w("FaceEmotionAnalyzer", "InputImage bitmap extraction failed")
+                onResult(null, Size(inputImage.width.toFloat(), inputImage.height.toFloat()), box)
+                return@process
+            }
+
+            // Crop face safely
+            val cropped = cropBoxFromBitmap(bitmap, box) ?: run {
+                onResult(null, Size(inputImage.width.toFloat(), inputImage.height.toFloat()), box)
+                return@process
+            }
+
+            // Convert to grayscale ByteBuffer
+            val bb = bitmapToGrayscaleByteBuffer(cropped, inputWidth, inputHeight)
+
+            // Classify (catch exceptions)
+            try {
+                val preds = classifier.classify(bb)
+                onResult(preds, Size(inputImage.width.toFloat(), inputImage.height.toFloat()), box)
+            } catch (t: Throwable) {
+                Log.w("FaceEmotionAnalyzer", "classification failed", t)
+                onResult(null, Size(inputImage.width.toFloat(), inputImage.height.toFloat()), box)
+            }
+        }
+    }
+
+    /** Try to read private bitmap from InputImage (works in many ML Kit versions). */
+    private fun inputImageToBitmap(inputImage: InputImage): Bitmap? {
+        return try {
+            val f = InputImage::class.java.getDeclaredField("bitmap")
+            f.isAccessible = true
+            (f.get(inputImage) as? Bitmap)
+        } catch (e: Exception) {
+            Log.w("FaceEmotionAnalyzer", "reflection extraction failed", e)
+            null
+        }
+    }
+
+    private fun cropBoxFromBitmap(src: Bitmap, box: Rect): Bitmap? {
+        val left = max(0, box.left)
+        val top = max(0, box.top)
+        val right = min(src.width, box.right)
+        val bottom = min(src.height, box.bottom)
+        val w = right - left
+        val h = bottom - top
+        if (w <= 0 || h <= 0) return null
+        return Bitmap.createBitmap(src, left, top, w, h)
+    }
+}
+
+fun mapImageRectToViewRect(
+    faceRect: Rect,
+    viewWidth: Int,
+    viewHeight: Int,
+    imageWidth: Int,
+    imageHeight: Int,
+): Rect {
+    val scaleX = viewWidth.toFloat() / imageWidth
+    val scaleY = viewHeight.toFloat() / imageHeight
+
+    return Rect(
+        (faceRect.left * scaleX).toInt(),
+        (faceRect.top * scaleY).toInt(),
+        (faceRect.right * scaleX).toInt(),
+        (faceRect.bottom * scaleY).toInt()
+    )
 }
 
 
+// -------------------------
+// CameraPreviewViewWithML: binds Preview + ImageAnalysis + FaceEmotionAnalyzer
+// - Exposes previewView (so overlay mapping can happen)
+// - onPredUpdate: live label String
+// - onPredFull: List<PredictionResult> for more info
+// - onFaceBox: face rectangle in image coordinates + imageSize so we can map to PreviewView
+// -------------------------
+@Composable
+fun CameraPreviewViewWithML(
+    modifier: Modifier = Modifier,
+    classifier: EmotionClassifier,
+    onPredUpdate: (String) -> Unit,
+    onPredFull: (List<PredictionResult>?) -> Unit,
+    onFaceBox: (faceRectInPreview: RectF?) -> Unit
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val executor = remember { Executors.newSingleThreadExecutor() }
 
-/**
- * Full CameraScanScreen integrated with CameraScanViewModel, CameraX preview, and DB repositories.
- *
- * NOTE: This file assumes you have an AppDatabase.getInstance(context) method that returns your Room database.
- * If your app exposes the DB differently, replace the getInstance call below with your method.
- */
+    // previewViewRef to measure size later (for mapping)
+    var previewViewRef: PreviewView? = null
+    var previewViewSize by remember { mutableStateOf(IntSize(0, 0)) }
+
+    AndroidView(factory = { ctx ->
+        val previewView = PreviewView(ctx).apply {
+            layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            scaleType = PreviewView.ScaleType.FILL_CENTER
+        }
+        previewViewRef = previewView
+
+        // Camera provider
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+        cameraProviderFuture.addListener({
+            try {
+                val cameraProvider = cameraProviderFuture.get()
+
+                val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+
+                val analyzer = FaceEmotionAnalyzer(ctx, classifier, 48, 48) { preds, imageSize, faceBox ->
+                    // Called on ML Kit completion thread. Map faceBox from image coords -> preview coords and update callbacks.
+                    // post to main thread using previewView.post
+                    previewView.post {
+                        if (faceBox == null || imageSize == null) {
+                            onPredUpdate("No face")
+                            onPredFull(null)
+                            onFaceBox(null)
+                        } else {
+                            // Map image coords -> previewView coords
+                            val mapped = mapImageRectToViewRect(faceBox, imageSize, previewView)
+                            // choose top label if preds present
+                            val top = preds?.maxByOrNull { it.confidence }
+                            val label = if (top != null) "${top.label} (${(top.confidence * 100).toInt()}%)" else "No prediction"
+                            onPredUpdate(label)
+                            onPredFull(preds)
+                            onFaceBox(mapped)
+                        }
+                    }
+                }
+
+                val imageAnalysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
+                    .build()
+                    .also { it.setAnalyzer(executor, analyzer) }
+
+                val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, preview, imageAnalysis)
+            } catch (e: Exception) {
+                Log.e("CameraPreviewViewWithML", "bind camera fail", e)
+            }
+        }, ContextCompat.getMainExecutor(ctx))
+
+        previewView
+    }, modifier = modifier
+        .onGloballyPositioned { coords ->
+            previewViewSize = coords.size
+        }
+    )
+
+    // Local helper: map image rect -> preview view rect using PreviewView transformation
+    fun mapImageRectToViewRect(imageRect: Rect, imageSize: Size, previewView: PreviewView): RectF? {
+        try {
+            val viewW = previewView.width.toFloat()
+            val viewH = previewView.height.toFloat()
+            if (viewW == 0f || viewH == 0f) return null
+
+            // ML Kit InputImage for mediaImage from CameraX has width = imageSize.width and height = imageSize.height
+            // PreviewView.ScaleType.FILL_CENTER shows the rotated + scaled surface inside the view. We'll compute a simple letterbox-scale mapping.
+            val imageW = imageSize.width
+            val imageH = imageSize.height
+
+            // Compute scale to fit image into view while preserving aspect ratio (FILL_CENTER crops to fill view).
+            val scale = max(viewW / imageW, viewH / imageH) // fill center uses max; but surface may be rotated for front camera - handle rotation separately if needed
+
+            // Center offset
+            val scaledImageW = imageW * scale
+            val scaledImageH = imageH * scale
+            val dx = (viewW - scaledImageW) / 2f
+            val dy = (viewH - scaledImageH) / 2f
+
+            // Map image rect to view:
+            val left = imageRect.left * scale + dx
+            val top = imageRect.top * scale + dy
+            val right = imageRect.right * scale + dx
+            val bottom = imageRect.bottom * scale + dy
+
+            return RectF(left, top, right, bottom)
+        } catch (e: Exception) {
+            Log.w("mapImageRectToViewRect", "mapping failed", e)
+            return null
+        }
+    }
+}
+
+// -------------------------
+// Full CameraScanScreen (integrated ML + original features)
+// -------------------------
 @Composable
 fun CameraScanScreen(
     navController: NavHostController,
-    database: AppDatabase // <-- ✅ DB passed from outside
+    database: AppDatabase // <-- DB passed from outside
 ) {
     val notificationState = rememberNotificationState()
     val context = LocalContext.current
@@ -606,12 +939,29 @@ fun CameraScanScreen(
     val isScanning by viewModel.isScanning.collectAsState()
     val scanProgress by viewModel.scanProgress.collectAsState()
 
-    // Permission flow
+    // Permission flow for CAMERA
     var permissionGranted by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
                     PackageManager.PERMISSION_GRANTED
         )
+    }
+
+    // LOCATION permission launcher (for runtime pop-up)
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val isGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+
+        if (isGranted) {
+            // Permission just granted, now fetch location and start scan
+            fetchLocationAndStartScan(context, viewModel)
+        } else {
+            // Permission denied, start scan without location
+            Toast.makeText(context, "Location denied. Saving without location.", Toast.LENGTH_SHORT).show()
+            viewModel.startScan(null, null, null)
+        }
     }
 
     if (!permissionGranted) {
@@ -634,6 +984,14 @@ fun CameraScanScreen(
         }
     }
 
+    // Load classifier once
+    val classifier = remember { EmotionClassifier(context) }
+
+    // Live ML UI state
+    var livePrediction by remember { mutableStateOf("Detecting...") }
+    var liveFaceBox by remember { mutableStateOf<RectF?>(null) }
+    var lastPredictions by remember { mutableStateOf<List<PredictionResult>?>(null) }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -647,16 +1005,100 @@ fun CameraScanScreen(
             ) {
                 MoodScanHeader(navController = navController)
 
+                // Camera + overlay box — keep aspect ratio and styling consistent
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(Color.Black),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Preview with ML analyzer
+                    CameraPreviewViewWithML(
+                        modifier = Modifier.fillMaxSize(),
+                        classifier = classifier,
+                        onPredUpdate = { label -> livePrediction = label },
+                        onPredFull = { preds -> lastPredictions = preds },
+                        onFaceBox = { rect -> liveFaceBox = rect }
+                    )
+
+                    // Overlay: bounding box & label (mapped to PreviewView coords by CameraPreviewViewWithML)
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val box = liveFaceBox
+                        if (box != null) {
+                            // Draw bounding box
+                            drawRoundRect(
+                                color = Color.White.copy(alpha = 0.0f),
+                                topLeft = Offset(box.left, box.top),
+                                size = Size(box.width(), box.height()),
+                                cornerRadius = CornerRadius(8f, 8f),
+                                style = Stroke(width = 4f, miter = 10f)
+                            )
+                            // draw label background
+                            val label = livePrediction
+                            val padding = 8f
+                            val textWidth = 220f.coerceAtMost(size.width - 20f)
+                            drawRoundRect(
+                                color = Color.Black.copy(alpha = 0.5f),
+                                topLeft = Offset(box.left, max(0f, box.top - 36f)),
+                                size = Size(textWidth, 36f),
+                                cornerRadius = CornerRadius(6f, 6f)
+                            )
+                            // draw text using Android canvas is not available here; instead use Compose overlay below
+                        }
+                    }
+
+                    // Label via Compose (bottom-center)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Text(
+                            text = livePrediction,
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .background(Color.Black.copy(alpha = 0.45f), shape = RoundedCornerShape(8.dp))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+
+                // Keep your original card and button
                 MoodCameraCard(
                     isScanning = isScanning,
                     scanProgress = scanProgress,
                     hasCameraPermission = permissionGranted
-
                 )
 
                 ScanActionButton(
                     showCameraPreview = !isScanning,
-                    onStartScan = { viewModel.startScan() },
+                    onStartScan = {
+                        // If we already have location permission -> fetch & start scan with location
+                        if (hasLocationPermission(context)) {
+                            // When startScan, attach lastPredictions top label if present
+                            val top = lastPredictions?.maxByOrNull { it.confidence }?.label
+                            // You may want to pass the predicted emotion into the viewModel; depends on signature
+                            // For now we keep behaviour: fetch location then call viewModel.startScan(currentLocation = ..)
+                            fetchLocationAndStartScan(context, viewModel)
+                            // Optionally, save predicted emotion into viewModel via a setter (if implemented)
+                            if (top != null) {
+                                viewModel.setDetectedEmotion(top) // if your ViewModel exposes this; else ignore
+                            }
+                        } else {
+                            // Trigger runtime permission popup
+                            locationPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        }
+                    },
                     onNewScan = { viewModel.resetScan() }
                 )
             }
@@ -681,5 +1123,6 @@ fun CameraScanScreen(
             )
         }
     }
+
     GlobalNotificationHandler(state = notificationState)
 }
