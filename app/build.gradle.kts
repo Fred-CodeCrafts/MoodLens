@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     kotlin("kapt") // Add this line for Room annotation processing
+    kotlin("plugin.serialization") version "1.9.22"
 
 }
 
@@ -45,6 +46,44 @@ android {
 }
 
 dependencies {
+
+// Supabase Auth + PostgREST
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+
+// Ktor client engine for Android
+    implementation("io.ktor:ktor-client-core:2.3.7")
+    implementation("io.ktor:ktor-client-android:2.3.7")
+    implementation("io.ktor:ktor-client-okhttp:2.3.7")
+    implementation("io.ktor:ktor-client-content-negotiation:2.3.7")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.7")
+    implementation("io.ktor:ktor-client-logging:2.3.7")
+
+
+
+// Kotlin coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+// Kotlin serialization (required by supabase-kt)
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
+
+// Google Identity Services (for native Google login)
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+
+// Optional - Android Credentials support for Play Services
+    implementation("androidx.credentials:credentials:1.1.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.1.0")
+
+
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    // Google Sign-In / Credentials API
+    implementation("com.google.android.gms:play-services-auth:20.5.0")  // Google Sign-In
+    // Kotlin Coroutines (for Flow)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    // Jetpack Compose (if using Compose UI)
+    implementation("androidx.compose.ui:ui:1.6.0")
+    implementation("androidx.compose.material:material:1.6.0")
+    implementation("androidx.compose.ui:ui-tooling-preview:1.6.0")
     // CameraX core
     implementation("androidx.camera:camera-core:1.3.4")
     implementation("androidx.camera:camera-camera2:1.3.4")
@@ -64,10 +103,9 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-// Room
-    implementation("androidx.room:room-runtime:2.6.0")
-    kapt("androidx.room:room-compiler:2.6.0")
-    implementation("androidx.room:room-ktx:2.6.0")
+
+    implementation("org.tensorflow:tensorflow-lite:2.12.0")
+    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 
 // Coroutines (optional but recommended with Room)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
