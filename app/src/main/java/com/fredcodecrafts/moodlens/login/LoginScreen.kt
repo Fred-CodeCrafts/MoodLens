@@ -146,9 +146,10 @@ fun LoginScreen(
 
                             googleHelper.launch(
                                 onSuccess = { idToken ->
-                                    val email = getGoogleUserEmail(idToken) ?: "unknown"
                                     scope.launch {
-                                        val success = supabaseAuth.signInWithGoogle(idToken, email)
+                                        // No need to pass email manually, Supabase handles it
+                                        val success = supabaseAuth.signInWithGoogle(idToken)
+
                                         if (success) {
                                             // Update/check local DB
                                             CoroutineScope(Dispatchers.IO).launch {

@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
+import androidx.credentials.exceptions.GetCredentialCancellationException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import java.security.MessageDigest
@@ -20,24 +21,15 @@ class GoogleSignInHelper(
 
     private val credentialManager = CredentialManager.create(activity)
 
-    private fun createNonce(): String {
-        val raw = UUID.randomUUID().toString()
-        val md = MessageDigest.getInstance("SHA-256")
-        return md.digest(raw.toByteArray()).joinToString("") { "%02x".format(it) }
-    }
-
     fun launch(
         onSuccess: (String) -> Unit,
         onError: (Exception) -> Unit
     ) {
 
-        val nonce = createNonce()
-
         val googleIdOption = GetGoogleIdOption.Builder()
-            .setServerClientId("983494992902-oi2f8lafrmt1htdb5gapc3aguclpsq91.apps.googleusercontent.com")
+            .setServerClientId("500733986799-14ab1pogfgkp20d9vr95n43i5qmb3vkh.apps.googleusercontent.com")
             .setFilterByAuthorizedAccounts(false)
             .setAutoSelectEnabled(false)
-            .setNonce(nonce)
             .build()
 
         val request = GetCredentialRequest.Builder()
