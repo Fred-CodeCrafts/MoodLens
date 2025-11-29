@@ -146,17 +146,21 @@ fun LoginScreen(
 
                             googleHelper.launch(
                                 onSuccess = { idToken ->
-                                    val email = getGoogleUserEmail(idToken) ?: "unknown"
                                     scope.launch {
-                                        val success = supabaseAuth.signInWithGoogle(idToken, email)
+                                        // FIX: Removed 'email' parameter. Only 'idToken' is needed now.
+                                        val success = supabaseAuth.signInWithGoogle(idToken)
+
                                         if (success) {
                                             // Update/check local DB
                                             CoroutineScope(Dispatchers.IO).launch {
-                                                var user = userDao.getUserByGoogleId(getGoogleUserId(idToken) ?: "")
+                                                // Extract the Google 'sub' (User ID) for local storage
+                                                val googleSub = getGoogleUserId(idToken) ?: ""
+
+                                                var user = userDao.getUserByGoogleId(googleSub)
                                                 if (user == null) {
                                                     user = User(
-                                                        userId = UUID.randomUUID().toString(),
-                                                        googleId = getGoogleUserId(idToken) ?: ""
+                                                        userId = UUID.randomUUID().toString(), // Local ID
+                                                        googleId = googleSub
                                                     )
                                                     userDao.insert(user)
                                                 }

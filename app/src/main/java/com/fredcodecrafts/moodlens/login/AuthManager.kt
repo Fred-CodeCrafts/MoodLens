@@ -2,6 +2,7 @@ package com.fredcodecrafts.moodlens.login
 
 import android.util.Log
 import io.ktor.client.*
+import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
@@ -15,40 +16,75 @@ import kotlinx.serialization.json.Json
 class AuthManager {
 
     private val supabaseUrl = "https://cglkbjwuvmakmamkcfww.supabase.co"
-    private val supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNnbGtiand1dm1ha21hbWtjZnd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyOTM1ODYsImV4cCI6MjA3ODg2OTU4Nn0.Yt2I8ELwfUT3sKD9PEMy5JgNGAbhnZ_gCXRN-m2a5Y8" // Move to secure storage for production
+    // RENAMED to match the usage below
+    private val supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNnbGtiand1dm1ha21hbWtjZnd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyOTM1ODYsImV4cCI6MjA3ODg2OTU4Nn0.Yt2I8ELwfUT3sKD9PEMy5JgNGAbhnZ_gCXRN-m2a5Y8"
 
     private val client = HttpClient(OkHttp) {
-        install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        install(ContentNegotiation) {
+            json(Json {
+                ignoreUnknownKeys = true
+                isLenient = true
+                encodeDefaults = true // <--- ADD THIS LINE! Crucial for Supabase.
+            })
+        }
     }
 
-    suspend fun signInWithGoogle(idToken: String, email: String): Boolean {
+    suspend fun signInWithGoogle(idToken: String): Boolean {
         return try {
-            val tableUrl = "$supabaseUrl/rest/v1/app_users"
+            // =================================================================
+            // STEP 1: AUTHENTICATE (The "Gatekeeper")
+            // Send the Google Token to Supabase.
+            // If this succeeds, the user is GUARANTEED to be in the "Authentication" page.
+            // =================================================================
+            val authUrl = "$supabaseUrl/auth/v1/token?grant_type=id_token"
 
-            // Check if user exists
-            val existing = client.get(tableUrl) {
-                url { parameters.append("user_id", "eq.$email") } // user_id stores email
-                header("apikey", supabaseKey)
-                header("Authorization", "Bearer $supabaseKey")
+            val authResponse = client.post(authUrl) {
+                header("apikey", supabaseAnonKey)
+                contentType(ContentType.Application.Json)
+                setBody(SupabaseAuthRequest(idToken = idToken))
             }
 
-            if (existing.bodyAsText() == "[]") {
-                val response = client.post(tableUrl) {
-                    header("apikey", supabaseKey)
-                    header("Authorization", "Bearer $supabaseKey")
-                    contentType(ContentType.Application.Json)
-                    setBody(AppUser(userId = email, googleId = idToken))
-                }
-                Log.d("AuthManager", "Inserted new user: ${response.status}")
-            } else {
-                Log.d("AuthManager", "User already exists")
+            // STOP if Auth failed
+            if (authResponse.status.value !in 200..299) {
+                val errorBody = authResponse.bodyAsText()
+                Log.e("AuthManager", "STEP 1 FAILED: Could not create user in Auth. Response: $errorBody")
+                return false
             }
+
+            // Parse the session to get the real UUID and the Access Token
+            val session = authResponse.body<SupabaseSession>()
+            val realUuid = session.user.id
+            val accessToken = session.accessToken
+
+            Log.d("AuthManager", "STEP 1 SUCCESS: User is now in Supabase Auth. UUID: $realUuid")
+
             true
+
         } catch (e: Exception) {
-            Log.e("AuthManager", "Error signing in with Google", e)
+            Log.e("AuthManager", "CRITICAL ERROR: ${e.message}", e)
             false
         }
     }
+
+    // --- REQUIRED DATA CLASSES ---
+
+    @Serializable
+    data class SupabaseAuthRequest(
+        @SerialName("id_token") val idToken: String,
+        val provider: String = "google"
+    )
+
+    @Serializable
+    data class SupabaseSession(
+        @SerialName("access_token") val accessToken: String,
+        val user: SupabaseUser
+    )
+
+    @Serializable
+    data class SupabaseUser(
+        val id: String,
+        val email: String? = null
+    )
 
     @Serializable
     data class AppUser(
