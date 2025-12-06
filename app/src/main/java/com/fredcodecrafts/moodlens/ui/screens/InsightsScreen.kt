@@ -37,7 +37,7 @@ fun InsightsScreen(
     database: AppDatabase
 ) {
     // Provide a sensible default user id — replace with real auth user id
-    val userId = "default_user_id"
+    val userId = "default_user"
 
     // Create repository and viewmodel factory (adapt if your JournalRepository constructor differs)
     val repository = remember {
