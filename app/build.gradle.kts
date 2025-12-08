@@ -117,7 +117,17 @@ dependencies {
     implementation ("androidx.room:room-ktx:2.8.1")
     kapt ("androidx.room:room-compiler:2.8.1")
 
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+
+    // Maps Clustering Utility
+    implementation("com.google.maps.android:android-maps-utils:3.8.2")
+
+    // Location Services
+    implementation("com.google.android.gms:play-services-location:21.1.0")
+
+
     implementation("androidx.navigation:navigation-compose:2.9.5")
+    implementation("androidx.compose.material:material-icons-extended")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

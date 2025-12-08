@@ -76,6 +76,11 @@ fun AppNavHost(
             )
         }
 
+        // ADD THIS NEW ROUTE FOR MOOD MAP
+        composable(route = Screen.MoodMap.route) {
+            MoodMapScreen(navController = navController, database = database)
+        }
+
         // =============== INSIGHTS ===============
         composable(Screen.Insights.route) {
             InsightsScreen(navController = navController, database = database)
