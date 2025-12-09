@@ -1,5 +1,7 @@
 package com.fredcodecrafts.moodlens.database.viewmodel
 
+import android.content.Context
+import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -7,6 +9,8 @@ import com.fredcodecrafts.moodlens.database.entities.JournalEntry
 import com.fredcodecrafts.moodlens.database.entities.MoodScanStat
 import com.fredcodecrafts.moodlens.database.repository.JournalRepository
 import com.fredcodecrafts.moodlens.database.repository.MoodScanStatRepository
+import com.fredcodecrafts.moodlens.ml.EmotionClassifier
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -15,7 +19,8 @@ import java.util.UUID
 class CameraScanViewModel(
     private val journalRepo: JournalRepository,
     private val statsRepo: MoodScanStatRepository,
-    private val userId: String
+    private val userId: String,
+    private val emotionClassifier: EmotionClassifier
 ) : ViewModel() {
 
     private val _detectedEmotion = MutableStateFlow<String?>(null)
@@ -27,30 +32,60 @@ class CameraScanViewModel(
     private val _isScanning = MutableStateFlow(false)
     val isScanning = _isScanning.asStateFlow()
 
-    // ---------------------- SIMULATED SCAN LOGIC ----------------------
-    // UPDATE: Added location parameters here. Default is null if location isn't available.
-    fun startScan(
-        currentLocation: String? = null,
-        latitude: Double? = null,
-        longitude: Double? = null
-    ) {
-        viewModelScope.launch {
-            _isScanning.value = true
-            _scanProgress.value = 0f
+    private var lastAnalysisTime = 0L
+    private val ANALYSIS_INTERVAL = 1000L // Analyze every 1 second
 
-            repeat(20) {
-                kotlinx.coroutines.delay(75)
-                _scanProgress.value += 0.05f
+    // ---------------------- REAL SCAN LOGIC ----------------------
+    // ---------------------- REAL SCAN LOGIC ----------------------
+    fun startScan() {
+        // No-op or just reset state. 
+        // In manual mode, the UI calls takePhoto directly.
+        _isScanning.value = true
+        _scanProgress.value = 0f
+        _detectedEmotion.value = null
+    }
+
+    fun analyzeImage(bitmap: Bitmap, currentLocation: String? = null, lat: Double? = null, lng: Double? = null) {
+        // Set scanning state to show loading UI
+        _isScanning.value = true
+        _scanProgress.value = 0.2f
+        
+        android.util.Log.d("CameraScanViewModel", "Analyzing captured photo...")
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Simulate progress update
+                _scanProgress.value = 0.5f
+
+                // Usage of new simpler API
+                val predictionIndex = emotionClassifier.predict(bitmap)
+                val emotion = emotionClassifier.getEmotionLabel(predictionIndex)
+                
+                if (emotion != null) {
+                    android.util.Log.d("CameraScanViewModel", "Emotion detected: $emotion (Index: $predictionIndex)")
+                    // If we got a valid emotion, stop scanning and save
+                    viewModelScope.launch(Dispatchers.Main) {
+                        _detectedEmotion.value = emotion
+                        _isScanning.value = false
+                        _scanProgress.value = 1f
+                        
+                        saveScanResult(emotion, currentLocation, lat, lng)
+                    }
+                } else {
+                    android.util.Log.d("CameraScanViewModel", "No emotion detected or invalid index: $predictionIndex")
+                    viewModelScope.launch(Dispatchers.Main) {
+                        _isScanning.value = false
+                        _scanProgress.value = 0f
+                        // Optional: Show error message
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("CameraScanViewModel", "Error analyzing image", e)
+                viewModelScope.launch(Dispatchers.Main) {
+                    _isScanning.value = false
+                    _scanProgress.value = 0f
+                }
             }
-
-            // TODO replace with MLKit or TensorFlow later
-            val finalEmotion = listOf("happy", "sad", "anxious", "calm", "excited", "tired").random()
-
-            _detectedEmotion.value = finalEmotion
-            _isScanning.value = false
-
-            // Pass location data to the save function
-            saveScanResult(finalEmotion, currentLocation, latitude, longitude)
         }
     }
 
@@ -64,13 +99,11 @@ class CameraScanViewModel(
         viewModelScope.launch {
 
             // Insert Journal Entry
-            // NOTE: Ensure your JournalEntry Entity has these fields defined!
             val entry = JournalEntry(
                 entryId = UUID.randomUUID().toString(),
                 userId = userId,
                 mood = emotion,
                 timestamp = System.currentTimeMillis(),
-                // Assigning location data
                 locationName = locationName,
                 latitude = lat,
                 longitude = lng
@@ -101,8 +134,6 @@ class CameraScanViewModel(
             statsRepo.insert(
                 existingStat.copy(
                     dailyScans = existingStat.dailyScans + 1,
-                    // Simple logic: if they scanned yesterday, increment streak.
-                    // (Logic simplified for brevity)
                     weekStreak = existingStat.weekStreak + 1
                 )
             )
@@ -120,19 +151,41 @@ class CameraScanViewModel(
         _isScanning.value = false
     }
 
+    fun simulateScanResult() {
+        viewModelScope.launch {
+            _isScanning.value = true
+            _scanProgress.value = 0.5f
+            kotlinx.coroutines.delay(1000)
+            
+            val emotion = "happy" // Force happy for testing
+            _detectedEmotion.value = emotion
+            _isScanning.value = false
+            _scanProgress.value = 1f
+            
+            saveScanResult(emotion, null, null, null)
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        emotionClassifier.close()
+    }
+
     // -------------------------------------------------------------------
     // FACTORY
     // -------------------------------------------------------------------
     class Factory(
         private val journalRepo: JournalRepository,
         private val statsRepo: MoodScanStatRepository,
-        private val userId: String
+        private val userId: String,
+        private val context: Context
     ) : ViewModelProvider.Factory {
 
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(CameraScanViewModel::class.java)) {
-                return CameraScanViewModel(journalRepo, statsRepo, userId) as T
+                val classifier = EmotionClassifier(context)
+                return CameraScanViewModel(journalRepo, statsRepo, userId, classifier) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }

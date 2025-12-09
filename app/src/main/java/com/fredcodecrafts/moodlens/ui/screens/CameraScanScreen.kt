@@ -3,6 +3,7 @@ package com.fredcodecrafts.moodlens.ui.screens
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.util.Log
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -173,6 +174,7 @@ fun MoodCameraCard(
     isScanning: Boolean,
     scanProgress: Float,
     hasCameraPermission: Boolean,
+    imageCapture: androidx.camera.core.ImageCapture,
     modifier: Modifier = Modifier
 ) {
     val primaryGradient = Brush.linearGradient(listOf(Color(0xFF7B3FE4), Color(0xFFBB6BD9)))
@@ -192,81 +194,101 @@ fun MoodCameraCard(
                 .background(primaryGradient, RoundedCornerShape(24.dp)),
             contentAlignment = Alignment.Center
         ) {
-            when {
-                !hasCameraPermission -> {
-                    CameraPreviewPlaceholder() // Show placeholder if no permission
-                }
-                !isScanning -> {
-                    CameraPreviewView(modifier = Modifier.fillMaxSize())
-                }
-                else -> {
-                    // Scanning animation
-                    val infiniteTransition = rememberInfiniteTransition()
-                    val rotation by infiniteTransition.animateFloat(
-                        initialValue = 0f,
-                        targetValue = 360f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(1000, easing = LinearEasing),
-                            repeatMode = RepeatMode.Restart
-                        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(primaryGradient, RoundedCornerShape(24.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            // Layer 1: Camera Preview or Placeholder
+            if (hasCameraPermission) {
+                // Add padding to show the purple border
+                Box(modifier = Modifier.padding(4.dp).clip(RoundedCornerShape(20.dp))) {
+                    CameraPreviewView(
+                        imageCapture = imageCapture,
+                        modifier = Modifier.fillMaxSize()
                     )
+                }
+            } else {
+                CameraPreviewPlaceholder()
+            }
 
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // Layer 2: Scanning Overlay
+            if (isScanning) {
+                // Scanning animation
+                val infiniteTransition = rememberInfiniteTransition()
+                val rotation by infiniteTransition.animateFloat(
+                    initialValue = 0f,
+                    targetValue = 360f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1000, easing = LinearEasing),
+                        repeatMode = RepeatMode.Restart
+                    )
+                )
+
+                // Semi-transparent overlay to dim the camera a bit
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.3f))
+                )
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .background(Color.White.copy(alpha = 0.3f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(80.dp)
-                                .background(Color.White.copy(alpha = 0.3f), CircleShape),
-                            contentAlignment = Alignment.Center
+                                .size(48.dp)
+                                .background(primaryGradient, CircleShape)
+                                .graphicsLayer { rotationZ = rotation },
+                            contentAlignment = Alignment.TopStart
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(48.dp)
-                                    .background(primaryGradient, CircleShape)
-                                    .graphicsLayer { rotationZ = rotation },
-                                contentAlignment = Alignment.TopStart
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(12.dp)
-                                        .background(Color.White, CircleShape)
-                                        .align(Alignment.TopStart)
-                                        .offset(x = 4.dp, y = 4.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Analyzing your mood...",
-                            color = Color.White,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(0.9f)
-                                .height(8.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(Color.White.copy(alpha = 0.2f))
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .fillMaxWidth(scanProgress)
-                                    .background(warmGradient, RoundedCornerShape(16.dp))
+                                    .size(12.dp)
+                                    .background(Color.White, CircleShape)
+                                    .align(Alignment.TopStart)
+                                    .offset(x = 4.dp, y = 4.dp)
                             )
                         }
+                    }
 
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "${(scanProgress * 100).toInt()}%",
-                            color = Color.White.copy(alpha = 0.7f),
-                            style = MaterialTheme.typography.bodySmall
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Analyzing your mood...",
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.9f)
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White.copy(alpha = 0.2f))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(scanProgress)
+                                .background(warmGradient, RoundedCornerShape(16.dp))
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${(scanProgress * 100).toInt()}%",
+                        color = Color.White.copy(alpha = 0.7f),
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
             }
+        }
         }
     }
 }
@@ -279,26 +301,28 @@ fun MoodResultSection(
     onReflect: () -> Unit
 ) {
     val moodEmojis = mapOf(
+        "angry" to "😠",
+        "disgust" to "🤢",
+        "fear" to "😨",
         "happy" to "😊",
+        "neutral" to "😐",
         "sad" to "😢",
-        "anxious" to "😰",
-        "calm" to "😌",
-        "excited" to "🤩",
-        "tired" to "😴"
+        "surprise" to "😲"
     )
     val moodMessages = mapOf(
+        "angry" to "You seem angry. Take a deep breath 😤",
+        "disgust" to "Something seems off. It's okay to feel this way 🤢",
+        "fear" to "You look afraid. You are safe here 🛡️",
         "happy" to "You look happy today! ✨",
+        "neutral" to "You seem neutral. A balanced state of mind ⚖️",
         "sad" to "You look sad today... I'm here for you 💙",
-        "anxious" to "You seem anxious today. Let's breathe together 🌸",
-        "calm" to "You look calm and peaceful today 🕊️",
-        "excited" to "You look excited today! Amazing energy! ⚡",
-        "tired" to "You look tired today. Rest is important 🌙"
+        "surprise" to "Wow! You look surprised! 😲"
     )
     val moodGradient = when (mood) {
-        "happy", "excited" -> Brush.linearGradient(listOf(Color(0xFFFFB300), Color(0xFFFF8A00)))
-        "sad", "tired" -> Brush.linearGradient(listOf(Color(0xFF4E54C8), Color(0xFF8F94FB)))
-        "anxious" -> Brush.linearGradient(listOf(Color(0xFF7B3FE4), Color(0xFFBB6BD9)))
-        "calm" -> Brush.linearGradient(listOf(Color(0xFF00C6FF), Color(0xFF0072FF)))
+        "happy", "surprise" -> Brush.linearGradient(listOf(Color(0xFFFFB300), Color(0xFFFF8A00)))
+        "sad", "fear" -> Brush.linearGradient(listOf(Color(0xFF4E54C8), Color(0xFF8F94FB)))
+        "angry", "disgust" -> Brush.linearGradient(listOf(Color(0xFFD32F2F), Color(0xFFE57373)))
+        "neutral" -> Brush.linearGradient(listOf(Color(0xFF607D8B), Color(0xFF90A4AE)))
         else -> Brush.linearGradient(listOf(Color(0xFF7B3FE4), Color(0xFFBB6BD9)))
     }
 
@@ -432,6 +456,7 @@ fun ScanActionButton(
     showCameraPreview: Boolean,
     onStartScan: () -> Unit,
     onNewScan: () -> Unit,
+    onSimulate: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -454,35 +479,20 @@ fun ScanActionButton(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Start Mood Scan",
+                    text = "Take Photo",
                     color = Color.White,
                     style = MaterialTheme.typography.titleMedium
                 )
             }
         } else {
+            // Scanning state
+            // Debug button to force success if camera/ML fails
             Button(
-                onClick = onNewScan,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = Color.Transparent,
-                    contentColor = Color(0xFF7B3FE4)
-                ),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(2.dp, Color(0xFF7B3FE4))
+                onClick = onSimulate,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = "New Scan",
-                    tint = Color(0xFF7B3FE4),
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "New Scan",
-                    style = MaterialTheme.typography.titleMedium
-                )
+                 Text("Simulate Result (Debug)")
             }
         }
     }
@@ -493,9 +503,13 @@ fun ScanActionButton(
  * Keeps camera binding simple — ready for adding ImageAnalysis later for ML.
  */
 @Composable
-fun CameraPreviewView(modifier: Modifier = Modifier) {
+fun CameraPreviewView(
+    imageCapture: androidx.camera.core.ImageCapture,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    
     AndroidView(
         factory = { ctx ->
             val previewView = PreviewView(ctx).apply {
@@ -503,7 +517,6 @@ fun CameraPreviewView(modifier: Modifier = Modifier) {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
-                // scaleType from PreviewView is available; default is FILL_CENTER
             }
 
             val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
@@ -522,7 +535,8 @@ fun CameraPreviewView(modifier: Modifier = Modifier) {
                     cameraProvider.bindToLifecycle(
                         lifecycleOwner,
                         cameraSelector,
-                        preview
+                        preview,
+                        imageCapture
                     )
                 } catch (e: Exception) {
                     Log.e("CameraPreviewView", "Failed to bind camera use cases", e)
@@ -597,7 +611,8 @@ fun CameraScanScreen(
         factory = CameraScanViewModel.Factory(
             journalRepo,
             statsRepo,
-            userId
+            userId,
+            context.applicationContext
         )
     )
 
@@ -634,6 +649,32 @@ fun CameraScanScreen(
         }
     }
 
+    // ImageCapture use case
+    val imageCapture = remember {
+        androidx.camera.core.ImageCapture.Builder()
+            .setCaptureMode(androidx.camera.core.ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            .build()
+    }
+
+    // Function to take photo
+    fun takePhoto() {
+        val mainExecutor = ContextCompat.getMainExecutor(context)
+        
+        imageCapture.takePicture(mainExecutor, object : androidx.camera.core.ImageCapture.OnImageCapturedCallback() {
+            override fun onCaptureSuccess(image: androidx.camera.core.ImageProxy) {
+                val bitmap = image.toBitmap()
+                // Rotate if needed (ImageProxy handles rotation info usually, but toBitmap might need help depending on device)
+                // For now, pass as is.
+                viewModel.analyzeImage(bitmap)
+                image.close()
+            }
+
+            override fun onError(exception: androidx.camera.core.ImageCaptureException) {
+                Log.e("CameraScanScreen", "Photo capture failed: ${exception.message}", exception)
+            }
+        })
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -650,14 +691,15 @@ fun CameraScanScreen(
                 MoodCameraCard(
                     isScanning = isScanning,
                     scanProgress = scanProgress,
-                    hasCameraPermission = permissionGranted
-
+                    hasCameraPermission = permissionGranted,
+                    imageCapture = imageCapture
                 )
 
                 ScanActionButton(
                     showCameraPreview = !isScanning,
-                    onStartScan = { viewModel.startScan() },
-                    onNewScan = { viewModel.resetScan() }
+                    onStartScan = { takePhoto() }, // <-- Call takePhoto instead of startScan
+                    onNewScan = { viewModel.resetScan() },
+                    onSimulate = { viewModel.simulateScanResult() }
                 )
             }
         } else {

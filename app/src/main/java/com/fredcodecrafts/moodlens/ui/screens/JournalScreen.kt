@@ -67,6 +67,7 @@ private fun formatTimestampToDate(timestamp: Long): String {
     }
 }
 
+
 private fun formatTimestampToTime(timestamp: Long): String {
     val format = SimpleDateFormat("h:mm a", Locale.getDefault())
     return format.format(Date(timestamp))
