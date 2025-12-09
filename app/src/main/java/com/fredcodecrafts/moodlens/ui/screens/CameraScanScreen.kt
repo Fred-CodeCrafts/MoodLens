@@ -584,7 +584,8 @@ fun RequestPermissions(onGranted: () -> Unit) {
 @Composable
 fun CameraScanScreen(
     navController: NavHostController,
-    database: AppDatabase
+    database: AppDatabase,
+    userId: String
 ) {
     val notificationState = rememberNotificationState()
     val context = LocalContext.current
@@ -602,9 +603,6 @@ fun CameraScanScreen(
     val statsRepo = remember {
         MoodScanStatRepository(database.moodScanStatDao())
     }
-
-    // Provide your userId
-    val userId = remember { "default_user" }  // TODO replace with real user
 
     // Create ViewModel via Factory
     val viewModel: CameraScanViewModel = viewModel(

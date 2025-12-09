@@ -33,4 +33,8 @@ class MoodScanStatRepository(
     suspend fun getStatForUserOnDate(userId: String, date: Long): MoodScanStat? {
         return moodScanStatDao.getStatForUserOnDate(userId, date)
     }
+
+    suspend fun getStatsForUser(userId: String): List<MoodScanStat> {
+        return moodScanStatDao.getStatsForUser(userId)
+    }
 }

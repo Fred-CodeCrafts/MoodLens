@@ -9,6 +9,34 @@ class SessionManager(context: Context) {
         prefs.edit().putBoolean("isLoggedIn", status).apply()
     }
 
+    fun saveUserSession(userId: String, token: String) {
+        prefs.edit()
+            .putString("currentUserId", userId)
+            .putString("accessToken", token)
+            .putBoolean("isLoggedIn", true)
+            .apply()
+        // Update companion/static for legacy access if needed, but prefer instance methods
+        currentUserId = userId
+        accessToken = token
+    }
+
+    fun getUserId(): String? {
+        val storedId = prefs.getString("currentUserId", null)
+        // Sync static cache if null but found in prefs
+        if (currentUserId == null && storedId != null) {
+            currentUserId = storedId
+        }
+        return storedId ?: currentUserId
+    }
+
+    fun getAccessToken(): String? {
+         val storedToken = prefs.getString("accessToken", null)
+         if (accessToken == null && storedToken != null) {
+            accessToken = storedToken
+         }
+         return storedToken ?: accessToken
+    }
+
     fun isLoggedIn(): Boolean {
         return prefs.getBoolean("isLoggedIn", false)
     }

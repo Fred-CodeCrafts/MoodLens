@@ -155,6 +155,13 @@ fun LoginScreen(
                                             CoroutineScope(Dispatchers.IO).launch {
                                                 // Extract the Google 'sub' (User ID) for local storage
                                                 val googleSub = getGoogleUserId(idToken) ?: ""
+                                                val sessionManager = com.fredcodecrafts.moodlens.utils.SessionManager(activity)
+                                                
+                                                // Persist Session!
+                                                sessionManager.saveUserSession(
+                                                    userId = com.fredcodecrafts.moodlens.utils.SessionManager.currentUserId ?: googleSub,
+                                                    token = com.fredcodecrafts.moodlens.utils.SessionManager.accessToken ?: ""
+                                                )
 
                                                 var user = userDao.getUserByGoogleId(googleSub)
                                                 if (user == null) {

@@ -23,4 +23,7 @@ interface NotesDao {
 
     @Query("DELETE FROM notes WHERE entryId = :entryId")
     suspend fun deleteNotesByEntryId(entryId: String)
+
+    @Query("SELECT notes.* FROM notes INNER JOIN journal_entries ON notes.entryId = journal_entries.entryId WHERE journal_entries.userId = :userId")
+    suspend fun getNotesForUser(userId: String): List<Note>
 }

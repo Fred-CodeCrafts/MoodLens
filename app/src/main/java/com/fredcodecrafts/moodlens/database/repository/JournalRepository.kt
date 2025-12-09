@@ -82,7 +82,27 @@ class JournalRepository(
     
     
     // -------------------- SYNC / BACKUP ---------------------
+    // -------------------- SYNC / BACKUP ---------------------
+
+    suspend fun pullFromSupabase() {
+        val entries = SupabaseClient.getAllJournals()
+        if (entries.isNotEmpty()) journalDao.insertAll(entries)
+        
+        val notes = SupabaseClient.getAllNotes()
+        if (notes.isNotEmpty()) notesDao.insertAll(notes)
+        
+        val stats = SupabaseClient.getAllMoodStats()
+        if (stats.isNotEmpty()) moodStatsDao.insertAll(stats)
+        
+        val messages = SupabaseClient.getAllMessages()
+        if (messages.isNotEmpty()) messagesDao.insertAll(messages)
+    }
+
     suspend fun syncAllData() {
+        // Step 1: Pull from Supabase -> Room
+        pullFromSupabase()
+
+        // Step 2: Push from Room -> Supabase
         val allEntries = journalDao.getAllEntries()
         allEntries.forEach { SupabaseClient.upsertJournal(it) }
 
@@ -92,7 +112,6 @@ class JournalRepository(
         val allStats = moodStatsDao.getAllStats()
         allStats.forEach { SupabaseClient.upsertMoodScanStat(it) }
         
-        // Also sync all messages
         val allMessages = messagesDao.getAllMessages()
         allMessages.forEach { SupabaseClient.upsertMessage(it) }
     }

@@ -19,4 +19,7 @@ interface MoodScanStatDao {
 
     @Query("SELECT * FROM mood_scan_stats WHERE userId = :userId AND date = :date")
     suspend fun getStatForUserOnDate(userId: String, date: Long): MoodScanStat?
+
+    @Query("SELECT * FROM mood_scan_stats WHERE userId = :userId")
+    suspend fun getStatsForUser(userId: String): List<MoodScanStat>
 }

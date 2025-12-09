@@ -21,7 +21,8 @@ fun AppNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
     database: AppDatabase,
-    notificationState: NotificationState
+    notificationState: NotificationState,
+    mainViewModel: com.fredcodecrafts.moodlens.database.viewmodel.MainViewModel
 ) {
     val context = LocalContext.current
     val sessionManager = SessionManager(context)
@@ -41,6 +42,9 @@ fun AppNavHost(
             LoginScreen(
                 onLoginSuccess = {
                     sessionManager.setLoggedIn(true)
+                    // Trigger Sync on Login!
+                    mainViewModel.syncNow()
+                    
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
@@ -58,27 +62,36 @@ fun AppNavHost(
         composable(Screen.Home.route) {
             MainMenuScreen(
                 navController = navController,
-                database = database
+                database = database,
+                userId = sessionManager.getUserId() ?: "default_user"
             )
         }
 
         // =============== CAMERA SCAN ===============
         composable(Screen.CameraScan.route) {
-            CameraScanScreen(navController = navController, database = database)
+            CameraScanScreen(
+                navController = navController,
+                database = database,
+                userId = sessionManager.getUserId() ?: "default_user"
+            )
         }
 
         // =============== JOURNAL ===============
         composable(Screen.Journal.route) {
             JournalScreen(
                 navController = navController,
-                userId = "default_user",
+                userId = sessionManager.getUserId() ?: "default_user",
                 db = database
             )
         }
 
         // =============== INSIGHTS ===============
         composable(Screen.Insights.route) {
-            InsightsScreen(navController = navController, database = database)
+            InsightsScreen(
+                navController = navController,
+                database = database,
+                userId = sessionManager.getUserId() ?: "default_user"
+            )
         }
 
         // =============== REFLECTION SCREEN ===============

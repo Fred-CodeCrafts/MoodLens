@@ -93,7 +93,7 @@ private fun getEmojiForMood(mood: String): String = when (mood.lowercase()) {
 fun JournalScreen(
     navController: NavController,
     db: AppDatabase, // Accept AppDatabase so Screen doesn't call DAOs directly
-    userId: String = "default_user"
+    userId: String
 ) {
     // Keep UI-level local state (selected entry, adding note UI state, input text)
     var entryToDelete by remember { mutableStateOf<JournalEntry?>(null) }
