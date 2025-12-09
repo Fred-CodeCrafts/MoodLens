@@ -153,28 +153,32 @@ fun LoginScreen(
                                         if (success) {
                                             // Update/check local DB
                                             CoroutineScope(Dispatchers.IO).launch {
-                                                // Extract the Google 'sub' (User ID) for local storage
-                                                val googleSub = getGoogleUserId(idToken) ?: ""
-                                                val sessionManager = com.fredcodecrafts.moodlens.utils.SessionManager(activity)
+                                                try {
+                                                    // Extract the Google 'sub' (User ID) for local storage
+                                                    val googleSub = getGoogleUserId(idToken) ?: ""
+                                                    val sessionManager = com.fredcodecrafts.moodlens.utils.SessionManager(activity)
                                                 
-                                                // Persist Session!
-                                                sessionManager.saveUserSession(
-                                                    userId = com.fredcodecrafts.moodlens.utils.SessionManager.currentUserId ?: googleSub,
-                                                    token = com.fredcodecrafts.moodlens.utils.SessionManager.accessToken ?: ""
-                                                )
-
-                                                var user = userDao.getUserByGoogleId(googleSub)
-                                                if (user == null) {
-                                                    user = User(
-                                                        userId = UUID.randomUUID().toString(), // Local ID
-                                                        googleId = googleSub
+                                                    // Persist Session!
+                                                    sessionManager.saveUserSession(
+                                                        userId = com.fredcodecrafts.moodlens.utils.SessionManager.currentUserId ?: googleSub,
+                                                        token = com.fredcodecrafts.moodlens.utils.SessionManager.accessToken ?: ""
                                                     )
-                                                    userDao.insert(user)
-                                                }
 
-                                                launch(Dispatchers.Main) {
-                                                    isLoading = false
-                                                    onLoginSuccess()
+                                                    var user = userDao.getUserByGoogleId(googleSub)
+                                                    if (user == null) {
+                                                        user = User(
+                                                            userId = com.fredcodecrafts.moodlens.utils.SessionManager.currentUserId ?: UUID.randomUUID().toString(), 
+                                                            googleId = googleSub
+                                                        )
+                                                        userDao.insert(user)
+                                                    }
+                                                } catch (e: Exception) {
+                                                    Log.e("LoginScreen", "Error saving user locally", e)
+                                                } finally {
+                                                    launch(Dispatchers.Main) {
+                                                        isLoading = false
+                                                        onLoginSuccess()
+                                                    }
                                                 }
                                             }
                                         } else {

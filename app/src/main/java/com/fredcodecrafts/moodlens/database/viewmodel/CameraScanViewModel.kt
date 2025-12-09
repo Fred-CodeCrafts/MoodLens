@@ -66,11 +66,19 @@ class CameraScanViewModel(
                 
                 if (emotion != null) {
                     android.util.Log.d("CameraScanViewModel", "Emotion detected: $emotion (Index: $predictionIndex)")
+                    
+                    // User Request: "even if the scan is over i still like to have a bit of loading animation"
+                    // So we update progress to 100% but keep 'isScanning = true' for a moment.
+                    viewModelScope.launch(Dispatchers.Main) {
+                         _scanProgress.value = 1f
+                    }
+                    // Artificial delay for UX
+                    kotlinx.coroutines.delay(2000)
+
                     // If we got a valid emotion, stop scanning and save
                     viewModelScope.launch(Dispatchers.Main) {
                         _detectedEmotion.value = emotion
                         _isScanning.value = false
-                        _scanProgress.value = 1f
                         
                         saveScanResult(emotion, currentLocation, lat, lng)
                     }
