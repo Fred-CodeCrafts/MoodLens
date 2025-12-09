@@ -55,7 +55,7 @@ import com.fredcodecrafts.moodlens.utils.GlobalNotificationHandler
 import com.fredcodecrafts.moodlens.utils.rememberNotificationState
 import kotlinx.coroutines.delay
 
-val purpleColor = Color(0xFF7B3FE4) // your purple
+import java.util.UUID
 
 @Composable
 fun CameraPreviewPlaceholder() {
@@ -111,7 +111,7 @@ fun MoodScanHeader(navController: NavHostController) {
             Icon(
                 painter = painterResource(id = R.drawable.lc_home_svg),
                 contentDescription = "home",
-                tint = purpleColor
+                tint = Color(0xFF7B3FE4)
             )
 
         }
@@ -550,45 +550,45 @@ fun CameraPreviewView(
 }
 
 /**
- * Request camera permission and call onGranted when permission is available.
+ * Request camera and location permissions.
  */
 @Composable
-fun RequestCameraPermission(onGranted: () -> Unit) {
+fun RequestPermissions(onGranted: () -> Unit) {
     val context = LocalContext.current
     var permissionRequested by remember { mutableStateOf(false) }
 
+    val permissions = arrayOf(
+        Manifest.permission.CAMERA,
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_COARSE_LOCATION
+    )
+
     val launcher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) onGranted()
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        val allGranted = result.values.all { it }
+        if (allGranted) onGranted()
     }
 
-    // 🔥 Run permission request AFTER the UI is drawn (guarantees popup shows)
     LaunchedEffect(Unit) {
         if (!permissionRequested) {
             permissionRequested = true
-            launcher.launch(Manifest.permission.CAMERA)
+            launcher.launch(permissions)
         }
     }
-
 }
-
-
 
 /**
  * Full CameraScanScreen integrated with CameraScanViewModel, CameraX preview, and DB repositories.
- *
- * NOTE: This file assumes you have an AppDatabase.getInstance(context) method that returns your Room database.
- * If your app exposes the DB differently, replace the getInstance call below with your method.
  */
 @Composable
 fun CameraScanScreen(
     navController: NavHostController,
-    database: AppDatabase // <-- ✅ DB passed from outside
+    database: AppDatabase
 ) {
     val notificationState = rememberNotificationState()
     val context = LocalContext.current
-
+    
     // Create repositories from your existing DB
     val journalRepo = remember {
         JournalRepository(
@@ -622,15 +622,16 @@ fun CameraScanScreen(
     val scanProgress by viewModel.scanProgress.collectAsState()
 
     // Permission flow
-    var permissionGranted by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
-                    PackageManager.PERMISSION_GRANTED
-        )
+    fun checkPermissions(): Boolean {
+        val camera = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        val location = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        return camera && location
     }
 
+    var permissionGranted by remember { mutableStateOf(checkPermissions()) }
+
     if (!permissionGranted) {
-        RequestCameraPermission(onGranted = { permissionGranted = true })
+        RequestPermissions(onGranted = { permissionGranted = true })
         GlobalNotificationHandler(state = notificationState)
         return
     }
@@ -655,18 +656,63 @@ fun CameraScanScreen(
             .setCaptureMode(androidx.camera.core.ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
             .build()
     }
+    
+    // Location Client
+    val fusedLocationClient = remember {
+        com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(context)
+    }
 
-    // Function to take photo
-    fun takePhoto() {
+    val geocoder = remember { android.location.Geocoder(context, java.util.Locale.getDefault()) }
+
+    // Function to get simple address (City, Country)
+    fun getCityName(lat: Double, lng: Double): String {
+        return try {
+            val addresses = geocoder.getFromLocation(lat, lng, 1)
+            if (!addresses.isNullOrEmpty()) {
+                val address = addresses[0]
+                // Combine locality (City) and country
+                val city = address.locality ?: address.subAdminArea ?: "Unknown City"
+                val country = address.countryName ?: ""
+                if (country.isNotBlank()) "$city, $country" else city
+            } else {
+                "Unknown Location"
+            }
+        } catch (e: Exception) {
+            Log.e("CameraScanScreen", "Geocoder failed", e)
+            "Unknown Location"
+        }
+    }
+
+    // Function to take photo and get location
+    fun takePhotoAndAnalyze() {
         val mainExecutor = ContextCompat.getMainExecutor(context)
         
         imageCapture.takePicture(mainExecutor, object : androidx.camera.core.ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(image: androidx.camera.core.ImageProxy) {
                 val bitmap = image.toBitmap()
-                // Rotate if needed (ImageProxy handles rotation info usually, but toBitmap might need help depending on device)
-                // For now, pass as is.
-                viewModel.analyzeImage(bitmap)
-                image.close()
+                
+                try {
+                    // Fetch location (permission already granted)
+                    fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                        if (location != null) {
+                            Log.d("CameraScanScreen", "Location found: ${location.latitude}, ${location.longitude}")
+                            // Use Geocoder here
+                            val cityLocation = getCityName(location.latitude, location.longitude)
+                            viewModel.analyzeImage(bitmap, cityLocation, location.latitude, location.longitude)
+                        } else {
+                            Log.d("CameraScanScreen", "Location null, proceeding without it")
+                            viewModel.analyzeImage(bitmap)
+                        }
+                    }.addOnFailureListener {
+                        Log.e("CameraScanScreen", "Failed to get location", it)
+                        viewModel.analyzeImage(bitmap)
+                    }
+                } catch (e: SecurityException) {
+                    Log.e("CameraScanScreen", "Permission error getting location", e)
+                    viewModel.analyzeImage(bitmap)
+                } finally {
+                    image.close()
+                }
             }
 
             override fun onError(exception: androidx.camera.core.ImageCaptureException) {
@@ -697,7 +743,7 @@ fun CameraScanScreen(
 
                 ScanActionButton(
                     showCameraPreview = !isScanning,
-                    onStartScan = { takePhoto() }, // <-- Call takePhoto instead of startScan
+                    onStartScan = { takePhotoAndAnalyze() }, // <-- Call takePhotoAndAnalyze
                     onNewScan = { viewModel.resetScan() },
                     onSimulate = { viewModel.simulateScanResult() }
                 )
@@ -711,9 +757,11 @@ fun CameraScanScreen(
                     }
                 },
                 onReflect = {
+                    // Use the ID from the ViewModel if available, or fallback to new_scan (should not happen if flow is correct)
+                    val entryId = viewModel.lastEntryId.value ?: UUID.randomUUID().toString()
                     navController.navigate(
                         Screen.Reflection.createRoute(
-                            entryId = "new_scan",
+                            entryId = entryId,
                             mood = detectedEmotion!!
                         )
                     ) {

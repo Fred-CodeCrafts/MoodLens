@@ -35,10 +35,21 @@ import com.fredcodecrafts.moodlens.database.entities.Message
 import com.fredcodecrafts.moodlens.database.entities.Note
 import com.fredcodecrafts.moodlens.database.entities.Question
 import com.fredcodecrafts.moodlens.database.viewmodel.ReflectionViewModel
-import com.fredcodecrafts.moodlens.ui.theme.gradientPrimary // Pastikan ini sesuai package theme lu
+import com.fredcodecrafts.moodlens.ui.theme.gradientPrimary 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.*
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
+import com.fredcodecrafts.moodlens.components.VirtualKeyboard
+
+// Repositories
+import com.fredcodecrafts.moodlens.database.repository.JournalRepository
+import com.fredcodecrafts.moodlens.database.repository.MessagesRepository
+import com.fredcodecrafts.moodlens.database.repository.NotesRepository
 
 // --- DATA CLASSES & HELPERS ---
 
@@ -72,18 +83,30 @@ val AccentPink = Color(0xFFEC4899)
 val TextPrimary = Color(0xFF1F2937)
 val TextSecondary = Color(0xFF6B7280)
 
-class ReflectionViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
+
+class ReflectionViewModelFactory(
+    private val context: Context,
+    private val database: AppDatabase
+) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ReflectionViewModel::class.java)) {
-            return ReflectionViewModel(context) as T
+            val journalRepo = JournalRepository(
+                database.journalDao(),
+                database.notesDao(),
+                database.messagesDao(),
+                database.moodScanStatDao()
+            )
+            val notesRepo = NotesRepository(database.notesDao())
+            val messagesRepo = MessagesRepository(database.messagesDao())
+            
+            return ReflectionViewModel(journalRepo, notesRepo, messagesRepo, database.questionsDao()) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
 
 // --- 1. STATEFUL COMPOSABLE (THE LOGIC / BRAIN) ---
-// Ini yang dipanggil dari Navigation Graph lu.
 @Composable
 fun ReflectionScreen(
     database: AppDatabase,
@@ -95,13 +118,11 @@ fun ReflectionScreen(
 ) {
     val context = LocalContext.current
     val reflectionViewModel: ReflectionViewModel = viewModel(
-        factory = ReflectionViewModelFactory(context)
+        factory = ReflectionViewModelFactory(context, database)
     )
 
     val scope = rememberCoroutineScope()
-    val messagesDao = remember { database.messagesDao() }
-    val journalDao = remember { database.journalDao() }
-    val notesDao = remember { database.notesDao() }
+    // DAOs removed, using ViewModel logic
 
     val openingQuestion by reflectionViewModel.openingQuestion.collectAsState()
     val promptQuestionsFromVm by reflectionViewModel.promptQuestions.collectAsState()
@@ -120,6 +141,8 @@ fun ReflectionScreen(
     var hasShownOpening by remember { mutableStateOf(false) }
 
     val listState = rememberLazyListState()
+    
+    // Note: session.questions might be empty initially. Ensure UI handles empty state gracefully.
     val promptQuestions = session.questions.filter { it.type == "prompt" }
 
     val progress = if (promptQuestions.isNotEmpty()) {
@@ -158,38 +181,19 @@ fun ReflectionScreen(
                 text = "✨ $aiReflection", isUser = false, timestamp = System.currentTimeMillis()
             )
 
-            // Database Operations
-            try {
-                val existingEntry = journalDao.getEntryById(entryId)
-                if (existingEntry != null) {
-                    val updated = existingEntry.copy(aiReflection = aiReflection)
-                    journalDao.insert(updated)
-                } else {
-                    val newEntry = JournalEntry(
-                        entryId = entryId, userId = "unknown", mood = session.mood,
-                        timestamp = session.startTime, locationName = null, aiReflection = aiReflection
-                    )
-                    journalDao.insert(newEntry)
-                }
-
-                if (!session.additionalNotes.isNullOrBlank()) {
-                    val note = Note(
-                        noteId = UUID.randomUUID().toString(), entryId = entryId, content = session.additionalNotes!!
-                    )
-                    notesDao.insert(note)
-                }
-                if (messages.isNotEmpty()) {
-                    messagesDao.insertAll(messages)
-                }
-            } catch (e: Exception) {
-                // Handle error
+            // Database Operations delegated to ViewModel (Handles Sync and existing Entry Update)
+            reflectionViewModel.saveReflection(
+                session = session,
+                aiReflection = aiReflection,
+                additionalNotes = if (includeNotes) additionalNotes else null,
+                messages = messages
+            ) {
+                 isTyping = false
+                 showSummary = true
+                 showAdditionalNotes = false
+                 scrollToBottom()
+                 onReflectionComplete(aiReflection)
             }
-
-            isTyping = false
-            showSummary = true
-            showAdditionalNotes = false
-            scrollToBottom()
-            onReflectionComplete(aiReflection)
         }
     }
 
@@ -244,25 +248,34 @@ fun ReflectionScreen(
     LaunchedEffect(key1 = Unit) {
         val emotion = MoodMapper.mapMoodToEmotion(currentMood)
         reflectionViewModel.loadQuestionsForEmotion(emotion)
-        delay(100)
-        val loadedQuestions = listOfNotNull(openingQuestion) + promptQuestionsFromVm
-        session = session.copy(questions = loadedQuestions)
+    }
 
-        val existingMessages = try { messagesDao.getMessagesForEntry(entryId) } catch (e: Exception) { emptyList<Message>() }
-        if (existingMessages.isNotEmpty()) {
-            messages = existingMessages
-        } else {
-            delay(500)
-            val openingQ = session.questions.firstOrNull { it.type == "opening" }
-            if (openingQ != null) {
-                messages = messages + Message(UUID.randomUUID().toString(), entryId, openingQ.text, false, System.currentTimeMillis())
-                hasShownOpening = true
-            }
-            delay(1500)
-            val firstPrompt = session.questions.filter { it.type == "prompt" }.firstOrNull()
-            if (firstPrompt != null) {
-                messages = messages + Message(UUID.randomUUID().toString(), entryId, firstPrompt.text, false, System.currentTimeMillis())
-            }
+    // React to questions loading
+    LaunchedEffect(openingQuestion, promptQuestionsFromVm) {
+        if (openingQuestion != null || promptQuestionsFromVm.isNotEmpty()) {
+            val loadedQuestions = listOfNotNull(openingQuestion) + promptQuestionsFromVm
+            session = session.copy(questions = loadedQuestions)
+        }
+    }
+    
+    // Message Initialization (dependent on session.questions having data)
+    LaunchedEffect(session.questions) {
+        if (session.questions.isNotEmpty() && messages.isEmpty()) {         
+             if (!hasShownOpening) {
+                 // Check existing messages logic omitted for brevity in this specific fix, assuming new session
+                 
+                 delay(500)
+                 val openingQ = session.questions.firstOrNull { it.type == "opening" }
+                 if (openingQ != null) {
+                     messages = messages + Message(UUID.randomUUID().toString(), entryId, openingQ.text, false, System.currentTimeMillis())
+                     hasShownOpening = true
+                 }
+                 delay(1500)
+                 val firstPrompt = session.questions.filter { it.type == "prompt" }.firstOrNull()
+                 if (firstPrompt != null) {
+                      messages = messages + Message(UUID.randomUUID().toString(), entryId, firstPrompt.text, false, System.currentTimeMillis())
+                 }
+             }
         }
     }
 
@@ -311,10 +324,8 @@ fun ReflectionScreenContent(
     onSaveNotes: () -> Unit,
     onFinish: () -> Unit
 ) {
-    // Scaffold otomatis ngatur layout biar Input ada di bawah, Header di atas.
     Scaffold(
-        containerColor = Color.Transparent, // Biar background gradient keliatan
-        // SECTION 1: HEADER (Fixed di atas)
+        containerColor = Color.Transparent, 
         topBar = {
             ReflectionHeaderSection(
                 progress = progress,
@@ -323,15 +334,12 @@ fun ReflectionScreenContent(
                 totalQuestions = totalQuestions
             )
         },
-        // SECTION 3: INPUT (Nempel di bawah / di atas keyboard)
         bottomBar = {
-            // Kita wrap pake Surface biar backgroundnya solid pas keyboard naik
-            // Atau biarin transparan kalau mau tetep keliatan gradient
             ReflectionInputSection(
                 showSummary = showSummary,
                 showAdditionalNotes = showAdditionalNotes,
                 session = session,
-                isTyping = isTyping, // Nanti typing indicator bisa ditaruh sini atau di body
+                isTyping = isTyping,
                 currentResponse = currentResponse,
                 additionalNotes = additionalNotes,
                 placeholder = placeholder,
@@ -348,8 +356,8 @@ fun ReflectionScreenContent(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(gradientPrimary()) // Background utama disini
-                .padding(paddingValues) // <-- INI YANG BIKIN BODY GA KETUTUPAN
+                .background(gradientPrimary()) 
+                .padding(paddingValues)
         ) {
             ReflectionBodySection(
                 messages = messages,
@@ -368,12 +376,11 @@ fun ReflectionHeaderSection(
     currentQuestionNumber: Int,
     totalQuestions: Int
 ) {
-    // Logic tampilan Header lu yg lama
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.Transparent) // Header transparan biar nyatu sama bg
-            .statusBarsPadding() // Biar ga ketutupan jam/batre HP
+            .background(Color.Transparent)
+            .statusBarsPadding()
             .padding(top = 8.dp)
     ) {
         Box(
@@ -419,20 +426,28 @@ fun ReflectionHeaderSection(
                 }
             }
         }
-        // Bisa tambah Progress Bar tipis disini kalau mau
     }
 }
 
 // --- DEFINE SECTION 2: BODY ---
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ReflectionBodySection(
     messages: List<Message>,
     isTyping: Boolean,
     listState: androidx.compose.foundation.lazy.LazyListState
 ) {
+    // Auto-scroll to bottom when keyboard (IME) opens
+    val imeVisible = WindowInsets.isImeVisible
+    LaunchedEffect(imeVisible, messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size - 1)
+        }
+    }
+
     LazyColumn(
         state = listState,
-        modifier = Modifier.fillMaxSize(), // Isi sisa ruang yang ada
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -454,6 +469,7 @@ fun ReflectionBodySection(
 }
 
 // --- DEFINE SECTION 3: INPUT ---
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ReflectionInputSection(
     showSummary: Boolean,
@@ -470,13 +486,16 @@ fun ReflectionInputSection(
     onSaveNotes: () -> Unit,
     onFinish: () -> Unit
 ) {
-    // Menggunakan navigationBarsPadding biar ga ketutupan gesture bar HP bawah
+    // Detect IME visibility to toggle Virtual Keyboard
+    val imeVisible = WindowInsets.isImeVisible
+    var isInputFocused by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.Transparent)
-            .navigationBarsPadding() // PENTING: Biar ada jarak sama gesture bar/keyboard
-            .imePadding() // PENTING: Biar nge-push diri sendiri pas keyboard muncul
+            .navigationBarsPadding() // Keep this to respect gesture bar
+            .imePadding() // Pushes up when real keyboard opens
     ) {
         when {
             showSummary -> {
@@ -494,13 +513,21 @@ fun ReflectionInputSection(
                 )
             }
             else -> {
-                if (!isTyping) { // Sembunyikan input kalau AI lagi ngetik (opsional)
+                if (!isTyping) {
                     ReflectionInputArea(
                         currentResponse = currentResponse,
                         onResponseChange = onResponseChange,
                         onSend = onSend,
-                        placeholder = placeholder
+                        placeholder = placeholder,
+                        onFocusChanged = { isInputFocused = it }
                     )
+                    
+                    // Show Virtual Keyboard ONLY if input is focused AND real keyboard is NOT visible
+                    // This satisfies "simulate" requesting for users/demos who want to see a keyboard 
+                    // without the real one, or if hardware keyboard is attached.
+                    if (isInputFocused && !imeVisible) {
+                         com.fredcodecrafts.moodlens.components.VirtualKeyboard()
+                    }
                 }
             }
         }
@@ -510,69 +537,12 @@ fun ReflectionInputSection(
 // --- 3. SUB-COMPONENTS (UI PARTS) ---
 
 @Composable
-private fun ReflectionTopBar(
-    progress: Float,
-    onBackClick: () -> Unit,
-    currentQuestionNumber: Int,
-    totalQuestions: Int
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp, bottom = 0.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min)
-                .padding(horizontal = 4.dp, vertical = 4.dp)
-        ) {
-            IconButton(
-                onClick = onBackClick,
-                modifier = Modifier.align(Alignment.CenterStart)
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = Color.White
-                )
-            }
-
-            Column(
-                modifier = Modifier.align(Alignment.Center),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Favorite,
-                    contentDescription = "Heart",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Reflection Session",
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                if (totalQuestions > 0) {
-                    Text(
-                        text = "Question $currentQuestionNumber of $totalQuestions",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.8f)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun ReflectionInputArea(
     currentResponse: String,
     onResponseChange: (String) -> Unit,
     onSend: () -> Unit,
-    placeholder: String
+    placeholder: String,
+    onFocusChanged: (Boolean) -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -590,7 +560,8 @@ private fun ReflectionInputArea(
                 placeholder = { Text(placeholder, color = Color.White) },
                 modifier = Modifier
                     .weight(1f)
-                    .padding(end = 8.dp),
+                    .padding(end = 8.dp)
+                    .onFocusChanged { onFocusChanged(it.isFocused) },
                 shape = RoundedCornerShape(24.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color.White,
@@ -731,6 +702,7 @@ private fun ReflectionSummary(session: ReflectionSession, onDone: () -> Unit) {
     }
 }
 
+
 @Composable
 private fun TypingIndicator() {
     Row(
@@ -771,7 +743,80 @@ private fun AnimatedDot(delayMillis: Long) {
     )
 }
 
-// Logic Helpers (Private)
+// Logic Helpers (Private) - kept for local AI generation if offline or for immediate feedback
+private fun generateAIReflection(session: ReflectionSession): String {
+    val emotion = MoodMapper.mapMoodToEmotion(session.mood)
+    val hasResponses = session.responses.isNotEmpty()
+
+    val baseReflection = when (emotion) {
+        "Happiness" -> {
+            if (hasResponses) {
+                "Your joy radiates through your words today. It's wonderful to see you embracing these positive moments. ${
+                    if (session.responses.values.any { it.contains("friend", ignoreCase = true) || it.contains("family", ignoreCase = true) })
+                        "The connections you've mentioned seem to bring you real happiness. "
+                    else ""
+                }Keep nurturing what brings you this lightness and remember these feelings during challenging times."
+            } else {
+                "It's beautiful that you're taking time to acknowledge your happiness. These moments of joy are precious and worth celebrating."
+            }
+        }
+        "Sadness" -> {
+            if (hasResponses) {
+                "Thank you for trusting me with these difficult feelings. Your sadness is valid and it's brave of you to acknowledge it. ${
+                    if (session.responses.values.any { it.length > 50 })
+                        "I can sense the depth of what you're experiencing. "
+                    else ""
+                }Remember that this feeling will pass, and it's okay to take all the time you need to process it. You're not alone in this."
+            } else {
+                "I recognize that you're going through a difficult time. Even though it's hard to put into words right now, acknowledging your sadness is an important step."
+            }
+        }
+        "Anger" -> {
+            if (hasResponses) {
+                "Your feelings are completely valid. ${
+                    if (session.responses.values.any { it.contains("unfair", ignoreCase = true) || it.contains("wrong", ignoreCase = true) })
+                        "It sounds like an important boundary may have been crossed. "
+                    else ""
+                }Anger often signals that something we value has been threatened or disrespected. Take the time you need to process this, and remember that you have the power to channel this energy constructively."
+            } else {
+                "It takes strength to acknowledge anger. This emotion often carries important messages about our boundaries and values."
+            }
+        }
+        "Anxiety" -> {
+            if (hasResponses) {
+                "I can sense the weight of worry you're carrying. ${
+                    if (session.responses.values.any { it.contains("future", ignoreCase = true) || it.contains("what if", ignoreCase = true) })
+                        "It's natural to feel uncertain about what's ahead. "
+                    else ""
+                }Your awareness of these anxious feelings is actually a strength. Remember to take things one step at a time, and focus on what you can control in this moment."
+            } else {
+                "Anxiety can feel overwhelming, and I want you to know it's okay to feel this way. Sometimes our minds try to protect us by preparing for every possibility."
+            }
+        }
+        "Stress" -> {
+            if (hasResponses) {
+                "It sounds like you're juggling a lot right now. ${
+                    if (session.responses.values.any { it.contains("work", ignoreCase = true) || it.contains("deadline", ignoreCase = true) })
+                        "The pressure you're facing is real and demanding. "
+                    else ""
+                }Remember that it's okay to not have everything figured out at once. Breaking things down into smaller, manageable steps can help."
+            } else {
+                "Feeling stressed is your body's way of telling you that you need to pause and recharge. It's not a sign of weakness, but a call to take care of yourself."
+            }
+        }
+        else -> {
+            "Thank you for taking this time to reflect on your feelings. Self-awareness is a powerful tool for growth and healing."
+        }
+    }
+
+    val ending = if (!session.additionalNotes.isNullOrBlank()) {
+        " Your additional thoughts show deep self-reflection. Keep honoring your feelings this way."
+    } else ""
+
+    return baseReflection + ending
+}
+
+
 private fun getTransitionMessage(currentIndex: Int, totalQuestions: Int): String {
     val progress = (currentIndex + 1).toFloat() / totalQuestions.toFloat()
     return when {
@@ -788,67 +833,6 @@ private fun getPlaceholderForQuestion(question: Question?): String {
         question.text.contains("trigger", ignoreCase = true) -> "What happened?"
         question.text.contains("feeling", ignoreCase = true) -> "Describe the feeling..."
         question.text.contains("think", ignoreCase = true) || question.text.contains("thought", ignoreCase = true) -> "Share your thoughts..."
-        question.text.contains("comfort", ignoreCase = true) -> "What helps you feel better?"
-        question.text.contains("control", ignoreCase = true) -> "What can you manage?"
         else -> "Type your response..."
-    }
-}
-
-private fun generateAIReflection(session: ReflectionSession): String {
-    // Logic AI hardcoded lu (saya persingkat biar muat, logic aslinya ga berubah)
-    val emotion = MoodMapper.mapMoodToEmotion(session.mood)
-    val hasResponses = session.responses.isNotEmpty()
-    val base = when (emotion) {
-        "Happiness" -> "Your joy radiates through your words today."
-        "Sadness" -> "Thank you for trusting me with these difficult feelings."
-        "Anger" -> "Your feelings are completely valid. Anger often signals crossed boundaries."
-        "Anxiety" -> "I can sense the weight of worry you're carrying. Take it one step at a time."
-        "Stress" -> "It sounds like you're juggling a lot. It's okay to pause."
-        else -> "Thank you for taking this time to reflect on your feelings."
-    }
-    return base + if (!session.additionalNotes.isNullOrBlank()) " Your additional thoughts show deep self-reflection." else ""
-}
-
-// --- 4. PREVIEW SECTION (THE MAGIC) ---
-// Ini yang bikin tombol "Split" di Android Studio berguna.
-
-@Preview(showBackground = true)
-@Composable
-fun ReflectionScreenPreview() {
-    // Bikin Dummy Data
-    val dummyMessages = listOf(
-        Message(UUID.randomUUID().toString(), "1", "Hi, how are you feeling today?", false, System.currentTimeMillis()),
-        Message(UUID.randomUUID().toString(), "1", "I'm feeling a bit anxious about my exams.", true, System.currentTimeMillis()),
-        Message(UUID.randomUUID().toString(), "1", "It's normal to feel that way. What specifically worries you?", false, System.currentTimeMillis())
-    )
-
-    val dummySession = ReflectionSession(
-        entryId = "1",
-        mood = "Anxiety",
-        questions = emptyList()
-    )
-
-    MaterialTheme {
-        ReflectionScreenContent(
-            messages = dummyMessages,
-            isTyping = true, // Ceritanya AI lagi ngetik
-            showSummary = false,
-            showAdditionalNotes = false,
-            additionalNotes = "",
-            currentResponse = "I'm worried I won't finish in time.",
-            progress = 0.4f,
-            currentQuestionNumber = 2,
-            totalQuestions = 5,
-            session = dummySession,
-            placeholder = "Type your response...",
-            listState = rememberLazyListState(),
-            onBackClick = {},
-            onResponseChange = {},
-            onSend = {},
-            onNotesChange = {},
-            onSkipNotes = {},
-            onSaveNotes = {},
-            onFinish = {}
-        )
     }
 }

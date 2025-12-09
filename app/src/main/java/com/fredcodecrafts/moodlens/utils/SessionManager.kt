@@ -15,5 +15,12 @@ class SessionManager(context: Context) {
 
     fun logout() {
         prefs.edit().clear().apply()
+        accessToken = null
+        currentUserId = null
+    }
+
+    companion object {
+        var accessToken: String? = null
+        var currentUserId: String? = null
     }
 }

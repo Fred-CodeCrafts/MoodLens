@@ -32,6 +32,9 @@ class CameraScanViewModel(
     private val _isScanning = MutableStateFlow(false)
     val isScanning = _isScanning.asStateFlow()
 
+    private val _lastEntryId = MutableStateFlow<String?>(null)
+    val lastEntryId = _lastEntryId.asStateFlow()
+
     private var lastAnalysisTime = 0L
     private val ANALYSIS_INTERVAL = 1000L // Analyze every 1 second
 
@@ -99,8 +102,12 @@ class CameraScanViewModel(
         viewModelScope.launch {
 
             // Insert Journal Entry
+            val newEntryId = UUID.randomUUID().toString()
+            // Expose ID for navigation
+            _lastEntryId.value = newEntryId
+            
             val entry = JournalEntry(
-                entryId = UUID.randomUUID().toString(),
+                entryId = newEntryId,
                 userId = userId,
                 mood = emotion,
                 timestamp = System.currentTimeMillis(),

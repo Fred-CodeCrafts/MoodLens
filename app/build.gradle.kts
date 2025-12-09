@@ -99,6 +99,7 @@ dependencies {
     implementation("androidx.camera:camera-extensions:1.3.4")
 // Permissions
     implementation("androidx.activity:activity-compose:1.9.2")
+    implementation("com.google.android.gms:play-services-location:21.0.1")
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

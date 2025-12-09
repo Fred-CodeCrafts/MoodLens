@@ -13,7 +13,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import com.fredcodecrafts.moodlens.ui.theme.GradientPrimary
 import androidx.compose.ui.res.painterResource // ✅ Jangan lupa import ini
@@ -50,6 +52,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.collectAsState
 import com.fredcodecrafts.moodlens.database.repository.JournalRepository
 import com.fredcodecrafts.moodlens.database.viewmodel.JournalViewModel
+import androidx.compose.ui.focus.onFocusChanged
+import com.fredcodecrafts.moodlens.components.VirtualKeyboard
 
 private fun formatTimestampToDate(timestamp: Long): String {
     val entryCalendar = Calendar.getInstance().apply { timeInMillis = timestamp }
@@ -84,7 +88,7 @@ private fun getEmojiForMood(mood: String): String = when (mood.lowercase()) {
     else -> "😐"
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun JournalScreen(
     navController: NavController,
@@ -160,68 +164,89 @@ fun JournalScreen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        JournalHeader(navController = navController)
+    // State for focus and IME to determine Virtual Keyboard visibility
+    var isInputFocused by remember { mutableStateOf(false) }
+    val imeVisible = WindowInsets.isImeVisible
 
-        when {
-            loading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = MainPurple)
-            }
-            entries.isEmpty() -> EmptyJournalView {
-                // Provide a way to reload data manually
-                scope.launch {
-                    viewModel.refreshAll()
+    // Use a Column to stack content and potential keyboard
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .navigationBarsPadding() // Handled here or in Scaffold if used
+            .imePadding() // React to real keyboard
+    ) {
+        JournalHeader(
+            navController = navController,
+            onSyncClick = { viewModel.backupData() }
+        )
+
+        // Main Content Area (Weight 1f to fill space above keyboard)
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            when {
+                loading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = MainPurple)
                 }
-            }
-            else -> {
-                val latestEntry = entries.firstOrNull()
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
-                ) {
-                    item {
-                        StatsCard(stats = stats)
-                    }
-
-                    if (latestEntry != null && notesMap[latestEntry.entryId].isNullOrEmpty() && !isAddingNote) {
+                entries.isEmpty() -> EmptyJournalView {
+                    scope.launch { viewModel.refreshAll() }
+                }
+                else -> {
+                    val latestEntry = entries.firstOrNull()
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                    ) {
                         item {
-                            AddNoteButton(onClick = {
-                                selectedEntryId = latestEntry.entryId
-                                isAddingNote = true
-                            })
+                            StatsCard(stats = stats)
                         }
-                    }
 
-                    item {
-                        AnimatedVisibility(visible = isAddingNote) {
-                            AddNoteCard(
-                                noteText = noteText,
-                                onNoteChange = { noteText = it },
-                                onSaveClick = onSaveNote,
-                                onCancelClick = {
-                                    isAddingNote = false
-                                    noteText = ""
-                                    selectedEntryId = null
-                                }
+                        if (latestEntry != null && notesMap[latestEntry.entryId].isNullOrEmpty() && !isAddingNote) {
+                            item {
+                                AddNoteButton(onClick = {
+                                    selectedEntryId = latestEntry.entryId
+                                    isAddingNote = true
+                                })
+                            }
+                        }
+
+                        item {
+                            androidx.compose.animation.AnimatedVisibility(visible = isAddingNote) {
+                                AddNoteCard(
+                                    noteText = noteText,
+                                    onNoteChange = { noteText = it },
+                                    onSaveClick = onSaveNote,
+                                    onCancelClick = {
+                                        isAddingNote = false
+                                        noteText = ""
+                                        selectedEntryId = null
+                                        isInputFocused = false // Reset focus state
+                                    },
+                                    onFocusChanged = { isInputFocused = it }
+                                )
+                            }
+                        }
+
+                        items(items = entries, key = { it.entryId }) { entry ->
+                            JournalEntryCard(
+                                entry = entry,
+                                notes = notesMap[entry.entryId] ?: emptyList(),
+                                onClick = {
+                                    navController.navigate(Screen.Reflection.createRoute(entry.entryId, entry.mood))
+                                },
+                                onLongClick = { entryToDelete = entry }
                             )
                         }
                     }
-
-                    items(items = entries, key = { it.entryId }) { entry ->
-                        JournalEntryCard(
-                            entry = entry,
-                            notes = notesMap[entry.entryId] ?: emptyList(),
-                            onClick = {
-                                // Navigate to Reflection screen route
-                                navController.navigate(Screen.Reflection.createRoute(entry.entryId, entry.mood))
-                            },
-                            onLongClick = {
-                                entryToDelete = entry
-                            }
-                        )
-                    }
                 }
             }
+        }
+
+        // Virtual Keyboard: Show if focused AND Real Keyboard (IME) is NOT visible
+        if (isInputFocused && !imeVisible) {
+            VirtualKeyboard()
         }
     }
 }
@@ -229,7 +254,7 @@ fun JournalScreen(
 // -- Supporting Composables (kept unchanged) --
 
 @Composable
-fun JournalHeader(navController: NavController) {
+fun JournalHeader(navController: NavController, onSyncClick: () -> Unit = {}) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -266,7 +291,14 @@ fun JournalHeader(navController: NavController) {
             )
         }
 
-        Spacer(modifier = Modifier.width(48.dp))
+        // Sync / Backup Button
+        IconButton(onClick = onSyncClick) {
+             Icon(
+                imageVector = Icons.Default.Refresh, 
+                contentDescription = "Backup Data",
+                tint = MainPurple
+            )
+        }
     }
 }
 
@@ -529,7 +561,8 @@ fun AddNoteCard(
     noteText: String,
     onNoteChange: (String) -> Unit,
     onSaveClick: () -> Unit,
-    onCancelClick: () -> Unit
+    onCancelClick: () -> Unit,
+    onFocusChanged: (Boolean) -> Unit = {}
 ) {
     Card(
         modifier = Modifier
@@ -549,7 +582,9 @@ fun AddNoteCard(
             OutlinedTextField(
                 value = noteText,
                 onValueChange = onNoteChange,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { onFocusChanged(it.isFocused) },
                 placeholder = { Text("Enter your note...") },
                 maxLines = 3
             )
