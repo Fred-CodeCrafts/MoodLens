@@ -53,14 +53,16 @@ import androidx.compose.runtime.collectAsState
 @Composable
 fun MainMenuScreen(
     navController: NavHostController,
-    database: AppDatabase
+    database: AppDatabase,
+    userId: String
 ) {
     val scope = rememberCoroutineScope()
 
     // --- ViewModel-based data (replaces direct DAO call) ---
     val viewModel: MainMenuViewModel = viewModel(
         factory = MainMenuViewModelFactory(
-            MoodScanStatRepository(database.moodScanStatDao())
+            MoodScanStatRepository(database.moodScanStatDao()),
+            userId
         )
     )
 

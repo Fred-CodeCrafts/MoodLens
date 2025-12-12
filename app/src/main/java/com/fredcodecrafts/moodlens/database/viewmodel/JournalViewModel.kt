@@ -45,10 +45,10 @@ class JournalViewModel(
             val userEntries = journalRepository.getEntriesForUser(userId)
             _entries.value = userEntries
 
-            val allNotes = journalRepository.getAllNotes()
+            val allNotes = journalRepository.getNotesForUser(userId)
             _notesMap.value = allNotes.groupBy { it.entryId }
 
-            _stats.value = journalRepository.getAllMoodStats()
+            _stats.value = journalRepository.getMoodStatsForUser(userId)
 
             _loading.value = false
         }
@@ -84,6 +84,22 @@ class JournalViewModel(
             val updatedMap = _notesMap.value.toMutableMap()
             updatedMap.remove(entryId)
             _notesMap.value = updatedMap
+        }
+    }
+
+
+    // ---------------------- BACKUP / SYNC ----------------------
+    fun backupData() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _loading.value = true // Optional: show loading indicator during sync
+            try {
+                journalRepository.syncAllData()
+                // Done syncing
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _loading.value = false
+            }
         }
     }
 

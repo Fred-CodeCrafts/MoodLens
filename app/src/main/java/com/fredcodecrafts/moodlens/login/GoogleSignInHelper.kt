@@ -34,7 +34,7 @@ class GoogleSignInHelper(
         val nonce = createNonce()
 
         val googleIdOption = GetGoogleIdOption.Builder()
-            .setServerClientId("983494992902-oi2f8lafrmt1htdb5gapc3aguclpsq91.apps.googleusercontent.com")
+            .setServerClientId("983494992902-22bp9akhq23b11972itvnaq4lg0fahiu.apps.googleusercontent.com")
             .setFilterByAuthorizedAccounts(false)
             .setAutoSelectEnabled(false)
             .setNonce(nonce)

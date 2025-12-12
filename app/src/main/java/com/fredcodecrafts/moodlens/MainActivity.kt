@@ -28,6 +28,18 @@ class MainActivity : ComponentActivity() {
 
         val db = AppDatabase.getDatabase(this)
         val session = SessionManager(this)
+        
+        // Create Repository & MainViewModel for Sync
+        val journalRepo = com.fredcodecrafts.moodlens.database.repository.JournalRepository(
+            db.journalDao(),
+            db.notesDao(),
+            db.messagesDao(),
+            db.moodScanStatDao()
+        )
+        val mainViewModel = androidx.lifecycle.ViewModelProvider(
+            this, 
+            com.fredcodecrafts.moodlens.database.viewmodel.MainViewModelFactory(journalRepo)
+        )[com.fredcodecrafts.moodlens.database.viewmodel.MainViewModel::class.java]
 
         // Determine start destination here
         val startDestination = if (session.isLoggedIn()) {
@@ -60,6 +72,7 @@ class MainActivity : ComponentActivity() {
                             navController = navController,
                             database = db,
                             notificationState = notificationState,
+                            mainViewModel = mainViewModel
                         )
 
                         InAppNotification(

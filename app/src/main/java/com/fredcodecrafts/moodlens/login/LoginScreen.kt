@@ -146,24 +146,39 @@ fun LoginScreen(
 
                             googleHelper.launch(
                                 onSuccess = { idToken ->
-                                    val email = getGoogleUserEmail(idToken) ?: "unknown"
                                     scope.launch {
-                                        val success = supabaseAuth.signInWithGoogle(idToken, email)
+                                        // FIX: Removed 'email' parameter. Only 'idToken' is needed now.
+                                        val success = supabaseAuth.signInWithGoogle(idToken)
+
                                         if (success) {
                                             // Update/check local DB
                                             CoroutineScope(Dispatchers.IO).launch {
-                                                var user = userDao.getUserByGoogleId(getGoogleUserId(idToken) ?: "")
-                                                if (user == null) {
-                                                    user = User(
-                                                        userId = UUID.randomUUID().toString(),
-                                                        googleId = getGoogleUserId(idToken) ?: ""
+                                                try {
+                                                    // Extract the Google 'sub' (User ID) for local storage
+                                                    val googleSub = getGoogleUserId(idToken) ?: ""
+                                                    val sessionManager = com.fredcodecrafts.moodlens.utils.SessionManager(activity)
+                                                
+                                                    // Persist Session!
+                                                    sessionManager.saveUserSession(
+                                                        userId = com.fredcodecrafts.moodlens.utils.SessionManager.currentUserId ?: googleSub,
+                                                        token = com.fredcodecrafts.moodlens.utils.SessionManager.accessToken ?: ""
                                                     )
-                                                    userDao.insert(user)
-                                                }
 
-                                                launch(Dispatchers.Main) {
-                                                    isLoading = false
-                                                    onLoginSuccess()
+                                                    var user = userDao.getUserByGoogleId(googleSub)
+                                                    if (user == null) {
+                                                        user = User(
+                                                            userId = com.fredcodecrafts.moodlens.utils.SessionManager.currentUserId ?: UUID.randomUUID().toString(), 
+                                                            googleId = googleSub
+                                                        )
+                                                        userDao.insert(user)
+                                                    }
+                                                } catch (e: Exception) {
+                                                    Log.e("LoginScreen", "Error saving user locally", e)
+                                                } finally {
+                                                    launch(Dispatchers.Main) {
+                                                        isLoading = false
+                                                        onLoginSuccess()
+                                                    }
                                                 }
                                             }
                                         } else {
