@@ -19,4 +19,8 @@ interface MessagesDao {
 
     @Query("SELECT * FROM messages WHERE entryId = :entryId ORDER BY timestamp ASC")
     suspend fun getMessagesForEntry(entryId: String): List<Message>
+
+    @Query("SELECT messages.* FROM messages INNER JOIN journal_entries ON messages.entryId = journal_entries.entryId WHERE journal_entries.userId = :userId")
+    suspend fun getMessagesForUser(userId: String): List<Message>
 }
+

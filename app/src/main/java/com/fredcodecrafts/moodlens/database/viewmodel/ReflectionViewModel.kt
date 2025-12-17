@@ -53,6 +53,10 @@ class ReflectionViewModel(
         questionsDao.insertAll(defaults)
     }
 
+    suspend fun loadMessages(entryId: String): List<Message> {
+        return messagesRepo.getMessagesForEntry(entryId)
+    }
+
     fun saveReflection(
         session: ReflectionSession,
         aiReflection: String,
@@ -81,12 +85,7 @@ class ReflectionViewModel(
 
                 // 2. Save Notes
                 if (!additionalNotes.isNullOrBlank()) {
-                    val note = Note(
-                        noteId = java.util.UUID.randomUUID().toString(),
-                        entryId = session.entryId,
-                        content = additionalNotes
-                    )
-                    notesRepo.insert(note) // Triggers Sync
+                     notesRepo.saveNoteForEntry(session.entryId, additionalNotes)
                 }
 
                 // 3. Save Messages

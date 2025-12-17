@@ -7,6 +7,7 @@ import com.fredcodecrafts.moodlens.database.entities.JournalEntry
 import com.fredcodecrafts.moodlens.database.entities.MoodScanStat
 import com.fredcodecrafts.moodlens.database.entities.Note
 import com.fredcodecrafts.moodlens.database.repository.JournalRepository
+import com.fredcodecrafts.moodlens.database.repository.NotesRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,6 +15,7 @@ import kotlinx.coroutines.launch
 
 class JournalViewModel(
     private val journalRepository: JournalRepository,
+    private val notesRepository: NotesRepository, // Injected
     private val userId: String
 ) : ViewModel() {
 
@@ -45,7 +47,8 @@ class JournalViewModel(
             val userEntries = journalRepository.getEntriesForUser(userId)
             _entries.value = userEntries
 
-            val allNotes = journalRepository.getNotesForUser(userId)
+            // Use NotesRepo for fetching
+            val allNotes = notesRepository.getNotesForUser(userId) // Ensure this exists in NotesRepo or add it
             _notesMap.value = allNotes.groupBy { it.entryId }
 
             _stats.value = journalRepository.getMoodStatsForUser(userId)
@@ -55,21 +58,16 @@ class JournalViewModel(
     }
 
 
-    // ---------------------- ADD NOTE ----------------------
+    // ---------------------- ADD NOTE (Upsert/Overwrite) ----------------------
     fun addNote(entryId: String, content: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val newNote = Note(
-                noteId = java.util.UUID.randomUUID().toString(),
-                entryId = entryId,
-                content = content.trim()
-            )
+            // Use the new single-note logic
+            notesRepository.saveNoteForEntry(entryId, content.trim())
 
-            journalRepository.insertNote(newNote)
-
-            // update notes group
-            val updated = _notesMap.value.toMutableMap()
-            updated[entryId] = (updated[entryId] ?: emptyList()) + newNote
-            _notesMap.value = updated
+            // Refetch notes to update UI accurately (since we might have updated existing)
+            // Or just fetch for this entry
+            val updatedNotes = notesRepository.getNotesForUser(userId)
+            _notesMap.value = updatedNotes.groupBy { it.entryId }
         }
     }
 
@@ -91,9 +89,11 @@ class JournalViewModel(
     // ---------------------- BACKUP / SYNC ----------------------
     fun backupData() {
         viewModelScope.launch(Dispatchers.IO) {
-            _loading.value = true // Optional: show loading indicator during sync
+            _loading.value = true
             try {
-                journalRepository.syncAllData()
+                // Trigger sync on all repos
+                journalRepository.pushAllJournals()
+                notesRepository.pushAllNotes()
                 // Done syncing
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -106,14 +106,15 @@ class JournalViewModel(
 
     // ---------------------- FACTORY INSIDE ----------------------
     class Factory(
-        private val repository: JournalRepository,
+        private val journalRepo: JournalRepository,
+        private val notesRepo: NotesRepository,
         private val userId: String
     ) : ViewModelProvider.Factory {
 
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(JournalViewModel::class.java)) {
-                return JournalViewModel(repository, userId) as T
+                return JournalViewModel(journalRepo, notesRepo, userId) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.simpleName}")
         }

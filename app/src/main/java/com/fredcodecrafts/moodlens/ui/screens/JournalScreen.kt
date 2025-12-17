@@ -22,6 +22,7 @@ import androidx.compose.ui.res.painterResource // ✅ Jangan lupa import ini
 import com.fredcodecrafts.moodlens.R
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -102,9 +103,11 @@ fun JournalScreen(
     var noteText by remember { mutableStateOf("") }
 
     // Build repository and ViewModel via its Factory
-    val repository = remember { JournalRepository(db.journalDao(), db.notesDao(), db.messagesDao(), db.moodScanStatDao()) }
+    val journalRepo = remember { JournalRepository(db.journalDao(), db.notesDao(), db.messagesDao(), db.moodScanStatDao()) }
+    val notesRepo = remember { com.fredcodecrafts.moodlens.database.repository.NotesRepository(db.notesDao()) }
+    
     val viewModel: JournalViewModel = viewModel(
-        factory = JournalViewModel.Factory(repository, userId)
+        factory = JournalViewModel.Factory(journalRepo, notesRepo, userId)
     )
 
     // Observe ViewModel state
