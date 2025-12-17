@@ -137,8 +137,11 @@ fun ReflectionScreen(
     var showSummary by remember { mutableStateOf(false) }
     var showAdditionalNotes by remember { mutableStateOf(false) }
     var additionalNotes by remember { mutableStateOf("") }
+
     var messages by remember { mutableStateOf<List<Message>>(emptyList()) }
     var hasShownOpening by remember { mutableStateOf(false) }
+    var isSaving by remember { mutableStateOf(false) } // State to prevent duplicate saves
+
 
     val listState = rememberLazyListState()
     
@@ -160,6 +163,9 @@ fun ReflectionScreen(
     }
 
     fun completeReflection(includeNotes: Boolean) {
+        if (isSaving) return // Prevent double-clicks
+        isSaving = true
+        
         scope.launch {
             if (includeNotes && additionalNotes.isNotBlank()) {
                 session.additionalNotes = additionalNotes
@@ -193,6 +199,7 @@ fun ReflectionScreen(
                  showAdditionalNotes = false
                  scrollToBottom()
                  onReflectionComplete(aiReflection)
+                 isSaving = false // Reset saving state
             }
         }
     }
@@ -248,6 +255,13 @@ fun ReflectionScreen(
     LaunchedEffect(key1 = Unit) {
         val emotion = MoodMapper.mapMoodToEmotion(currentMood)
         reflectionViewModel.loadQuestionsForEmotion(emotion)
+        
+        // Load existing messages for this entry
+        val existingMessages = reflectionViewModel.loadMessages(entryId)
+        if (existingMessages.isNotEmpty()) {
+            messages = existingMessages
+            hasShownOpening = true // Prevent opening animation if returning
+        }
     }
 
     // React to questions loading
@@ -746,74 +760,15 @@ private fun AnimatedDot(delayMillis: Long) {
 // Logic Helpers (Private) - kept for local AI generation if offline or for immediate feedback
 private fun generateAIReflection(session: ReflectionSession): String {
     val emotion = MoodMapper.mapMoodToEmotion(session.mood)
-    val hasResponses = session.responses.isNotEmpty()
-
-    val baseReflection = when (emotion) {
-        "Happiness" -> {
-            if (hasResponses) {
-                "Your joy radiates through your words today. It's wonderful to see you embracing these positive moments. ${
-                    if (session.responses.values.any { it.contains("friend", ignoreCase = true) || it.contains("family", ignoreCase = true) })
-                        "The connections you've mentioned seem to bring you real happiness. "
-                    else ""
-                }Keep nurturing what brings you this lightness and remember these feelings during challenging times."
-            } else {
-                "It's beautiful that you're taking time to acknowledge your happiness. These moments of joy are precious and worth celebrating."
-            }
-        }
-        "Sadness" -> {
-            if (hasResponses) {
-                "Thank you for trusting me with these difficult feelings. Your sadness is valid and it's brave of you to acknowledge it. ${
-                    if (session.responses.values.any { it.length > 50 })
-                        "I can sense the depth of what you're experiencing. "
-                    else ""
-                }Remember that this feeling will pass, and it's okay to take all the time you need to process it. You're not alone in this."
-            } else {
-                "I recognize that you're going through a difficult time. Even though it's hard to put into words right now, acknowledging your sadness is an important step."
-            }
-        }
-        "Anger" -> {
-            if (hasResponses) {
-                "Your feelings are completely valid. ${
-                    if (session.responses.values.any { it.contains("unfair", ignoreCase = true) || it.contains("wrong", ignoreCase = true) })
-                        "It sounds like an important boundary may have been crossed. "
-                    else ""
-                }Anger often signals that something we value has been threatened or disrespected. Take the time you need to process this, and remember that you have the power to channel this energy constructively."
-            } else {
-                "It takes strength to acknowledge anger. This emotion often carries important messages about our boundaries and values."
-            }
-        }
-        "Anxiety" -> {
-            if (hasResponses) {
-                "I can sense the weight of worry you're carrying. ${
-                    if (session.responses.values.any { it.contains("future", ignoreCase = true) || it.contains("what if", ignoreCase = true) })
-                        "It's natural to feel uncertain about what's ahead. "
-                    else ""
-                }Your awareness of these anxious feelings is actually a strength. Remember to take things one step at a time, and focus on what you can control in this moment."
-            } else {
-                "Anxiety can feel overwhelming, and I want you to know it's okay to feel this way. Sometimes our minds try to protect us by preparing for every possibility."
-            }
-        }
-        "Stress" -> {
-            if (hasResponses) {
-                "It sounds like you're juggling a lot right now. ${
-                    if (session.responses.values.any { it.contains("work", ignoreCase = true) || it.contains("deadline", ignoreCase = true) })
-                        "The pressure you're facing is real and demanding. "
-                    else ""
-                }Remember that it's okay to not have everything figured out at once. Breaking things down into smaller, manageable steps can help."
-            } else {
-                "Feeling stressed is your body's way of telling you that you need to pause and recharge. It's not a sign of weakness, but a call to take care of yourself."
-            }
-        }
-        else -> {
-            "Thank you for taking this time to reflect on your feelings. Self-awareness is a powerful tool for growth and healing."
-        }
+    
+    return when (emotion) {
+        "Happiness" -> "It's wonderful to see your joy. Treasure these moments."
+        "Sadness" -> "Your sadness is valid. Take time to process it; you're not alone."
+        "Anger" -> "Your feelings are valid. Anger often signals crossed boundaries."
+        "Anxiety" -> "Uncertainty is tough. Focus on what you can control right now."
+        "Stress" -> "You're handling a lot. Remember to rest and recharge."
+        else -> "Thank you for reflecting. Your feelings matter."
     }
-
-    val ending = if (!session.additionalNotes.isNullOrBlank()) {
-        " Your additional thoughts show deep self-reflection. Keep honoring your feelings this way."
-    } else ""
-
-    return baseReflection + ending
 }
 
 

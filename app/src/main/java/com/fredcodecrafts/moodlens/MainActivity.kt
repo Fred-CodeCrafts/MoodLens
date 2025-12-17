@@ -30,16 +30,30 @@ class MainActivity : ComponentActivity() {
         val session = SessionManager(this)
         
         // Create Repository & MainViewModel for Sync
+
+        // Create Repositories
+        val messagesRepo = com.fredcodecrafts.moodlens.database.repository.MessagesRepository(db.messagesDao())
+        val notesRepo = com.fredcodecrafts.moodlens.database.repository.NotesRepository(db.notesDao())
+        val moodStatsRepo = com.fredcodecrafts.moodlens.database.repository.MoodScanStatRepository(db.moodScanStatDao())
+
         val journalRepo = com.fredcodecrafts.moodlens.database.repository.JournalRepository(
             db.journalDao(),
             db.notesDao(),
             db.messagesDao(),
             db.moodScanStatDao()
         )
+
+        // Create MainViewModel for Sync
         val mainViewModel = androidx.lifecycle.ViewModelProvider(
             this, 
-            com.fredcodecrafts.moodlens.database.viewmodel.MainViewModelFactory(journalRepo)
+            com.fredcodecrafts.moodlens.database.viewmodel.MainViewModelFactory(
+                journalRepo,
+                messagesRepo,
+                notesRepo,
+                moodStatsRepo
+            )
         )[com.fredcodecrafts.moodlens.database.viewmodel.MainViewModel::class.java]
+
 
         // Determine start destination here
         val startDestination = if (session.isLoggedIn()) {

@@ -14,11 +14,13 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import com.fredcodecrafts.moodlens.utils.SessionManager
 
+import com.fredcodecrafts.moodlens.utils.SupabaseConfig
+
 class AuthManager {
 
-    private val supabaseUrl = "https://cglkbjwuvmakmamkcfww.supabase.co"
-    // RENAMED to match the usage below
-    private val supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNnbGtiand1dm1ha21hbWtjZnd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyOTM1ODYsImV4cCI6MjA3ODg2OTU4Nn0.Yt2I8ELwfUT3sKD9PEMy5JgNGAbhnZ_gCXRN-m2a5Y8"
+    // Using shared config
+    private val supabaseUrl = SupabaseConfig.SUPABASE_URL
+    private val supabaseAnonKey = SupabaseConfig.ANON_KEY
 
     private val client = HttpClient(OkHttp) {
         install(ContentNegotiation) {
@@ -63,12 +65,46 @@ class AuthManager {
             SessionManager.accessToken = accessToken
             SessionManager.currentUserId = realUuid
 
+
+            // =================================================================
+            // STEP 2: UPSERT USER TO 'app_users' TABLE
+            // Ensuring the user exists in our public table for RLS policies
+            // =================================================================
+            try {
+                // Use the user's email if available, or just ID
+                val email = session.user.email
+                
+                // We send a POST to the table endpoint with Prefer: resolution=merge-duplicates
+                // This acts as an UPSERT (Insert or Update if PK matches)
+                client.post("$supabaseUrl/rest/v1/${SupabaseConfig.SCHEMA}.app_users") {
+                    header("Authorization", "Bearer $accessToken")
+                    header("apikey", supabaseAnonKey)
+                    header("Prefer", "resolution=merge-duplicates")
+                    // Target the 'app_data' schema
+                    header("Accept-Profile", SupabaseConfig.SCHEMA)
+                    header("Content-Profile", SupabaseConfig.SCHEMA)
+                    contentType(ContentType.Application.Json)
+                    setBody(
+                        AppUser(
+                            userId = realUuid,
+                            googleId = session.user.id // Using Supabase ID as google_id mapping for now, or actual google ID if passed
+                        )
+                    )
+                }
+                Log.d("AuthManager", "STEP 2 SUCCESS: User upserted to app_users.")
+
+            } catch (e: Exception) {
+                // Non-fatal, login can still proceed, but log it
+                Log.e("AuthManager", "STEP 2 WARNING: Failed to upsert to app_users: ${e.message}")
+            }
+
             true
 
         } catch (e: Exception) {
             Log.e("AuthManager", "CRITICAL ERROR: ${e.message}", e)
             false
         }
+
     }
 
     // --- REQUIRED DATA CLASSES ---
