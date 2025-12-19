@@ -5,6 +5,16 @@ import android.content.Context
 class SessionManager(context: Context) {
     private val prefs = context.getSharedPreferences("moodlens_prefs", Context.MODE_PRIVATE)
 
+    init {
+        // Hydrate static variables from SharedPreferences on initialization
+        if (accessToken == null) {
+            accessToken = prefs.getString("accessToken", null)
+        }
+        if (currentUserId == null) {
+            currentUserId = prefs.getString("currentUserId", null)
+        }
+    }
+
     fun setLoggedIn(status: Boolean) {
         prefs.edit().putBoolean("isLoggedIn", status).apply()
     }

@@ -5,10 +5,10 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "journal_entries")
 data class JournalEntry(
-    @PrimaryKey val entryId: String,
-    val userId: String,
-    val mood: String, // happy, sad, anxious, calm, excited, tired
-    val timestamp: Long,
+    @PrimaryKey val entryId: String = "",
+    val userId: String = "",
+    val mood: String = "", // happy, sad, anxious, calm, excited, tired
+    val timestamp: Long = 0L,
 
     // 📍 LOCATION DATA
     val locationName: String? = null, // e.g. "Central Jakarta"

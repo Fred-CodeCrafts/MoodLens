@@ -6,37 +6,25 @@ import android.util.Log
 import com.fredcodecrafts.moodlens.database.dao.NotesDao
 import com.fredcodecrafts.moodlens.database.entities.Note
 import com.fredcodecrafts.moodlens.utils.SessionManager
-import com.fredcodecrafts.moodlens.utils.SupabaseConfig
-import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.contentType
-import io.ktor.serialization.kotlinx.json.json
+
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
+
 
 class NotesRepository(
     private val notesDao: NotesDao
 ) {
-    private val client = HttpClient(OkHttp) {
-        install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                isLenient = true
-                encodeDefaults = true
-            })
-        }
-    }
+//    private val client = HttpClient(OkHttp) {
+//        install(ContentNegotiation) {
+//            json(Json {
+//                ignoreUnknownKeys = true
+//                isLenient = true
+//                encodeDefaults = true
+//            })
+//        }
+//    }
 
     suspend fun insert(note: Note) {
         Log.d("NotesRepository", "Inserting local note: ${note.noteId}")
@@ -98,54 +86,43 @@ class NotesRepository(
 
     // ------------------- SUPABASE LOGIC -------------------
 
-    private suspend fun upsertNote(note: Note) {
-        val token = SessionManager.accessToken ?: return
-        try {
-            val response = client.post("${SupabaseConfig.SUPABASE_URL}/rest/v1/${SupabaseConfig.SCHEMA}.notes") {
-                header("Authorization", "Bearer $token")
-                header("apikey", SupabaseConfig.ANON_KEY)
-                header("Prefer", "resolution=merge-duplicates")
-                header("Accept-Profile", SupabaseConfig.SCHEMA)
-                header("Content-Profile", SupabaseConfig.SCHEMA)
-                contentType(ContentType.Application.Json)
-                setBody(
-                    RemoteNote(
-                        note_id = note.noteId,
-                        entry_id = note.entryId,
-                        content = note.content
-                    )
-                )
-            }
-            if (response.status.value !in 200..299) {
-                Log.e("NotesRepository", "Failed to sync note: ${response.bodyAsText()}")
-            } else {
-                Log.d("NotesRepository", "Note synced.")
-            }
-        } catch (e: Exception) {
-            Log.e("NotesRepository", "Error syncing note", e)
-        }
+    // ------------------- FIREBASE SYNC -------------------
+    private val firebaseDb = com.google.firebase.database.FirebaseDatabase.getInstance()
+    private val notesRef = firebaseDb.getReference("notes")
+
+    private fun upsertNote(note: Note) {
+        val userId = SessionManager.currentUserId ?: return
+        // Path: notes/{userId}/{noteId}
+        notesRef.child(userId).child(note.noteId).setValue(note)
+             .addOnSuccessListener {
+                 Log.d("NotesRepository", "Note synced to Firebase")
+             }
+             .addOnFailureListener { e ->
+                 Log.e("NotesRepository", "Failed to sync note", e)
+             }
     }
 
     suspend fun fetchAndSyncNotes() {
-        val token = SessionManager.accessToken ?: return
-        try {
-            val response = client.get("${SupabaseConfig.SUPABASE_URL}/rest/v1/${SupabaseConfig.SCHEMA}.notes?select=*") {
-                header("Authorization", "Bearer $token")
-                header("apikey", SupabaseConfig.ANON_KEY)
-                header("Accept-Profile", SupabaseConfig.SCHEMA)
+        val userId = SessionManager.currentUserId ?: return
+        
+        notesRef.child(userId).get().addOnSuccessListener { snapshot ->
+            if (snapshot.exists()) {
+                val notes = mutableListOf<Note>()
+                for (child in snapshot.children) {
+                    try {
+                        val note = child.getValue(Note::class.java)
+                        if (note != null) notes.add(note)
+                    } catch (e: Exception) {
+                        Log.e("NotesRepository", "Error parsing note: ${e.message}")
+                    }
+                }
+                if (notes.isNotEmpty()) {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        notesDao.insertAll(notes)
+                    }
+                }
             }
-            val remoteList: List<RemoteNote> = response.body()
-             val notes = remoteList.map {
-                Note(
-                    noteId = it.note_id,
-                    entryId = it.entry_id,
-                    content = it.content
-                )
-            }
-            if (notes.isNotEmpty()) {
-                notesDao.insertAll(notes)
-            }
-        } catch (e: Exception) {
+        }.addOnFailureListener { e ->
             Log.e("NotesRepository", "Error fetching notes", e)
         }
     }

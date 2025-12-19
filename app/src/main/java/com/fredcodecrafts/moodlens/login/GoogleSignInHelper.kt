@@ -34,7 +34,9 @@ class GoogleSignInHelper(
         val nonce = createNonce()
 
         val googleIdOption = GetGoogleIdOption.Builder()
-            .setServerClientId("983494992902-22bp9akhq23b11972itvnaq4lg0fahiu.apps.googleusercontent.com")
+            // TODO: Ensure this matches the 'Web client ID' in the Firebase Console -> Authentication -> Google Sign-In settings.
+            // Using Client ID from google-services.json (client_type 3)
+            .setServerClientId("615186428110-u45up4b1s7tk9eqagh3i9dfejtjtues6.apps.googleusercontent.com")
             .setFilterByAuthorizedAccounts(false)
             .setAutoSelectEnabled(false)
             .setNonce(nonce)

@@ -19,3 +19,18 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# ----------------------------------------------------------------------------
+# Firebase Realtime Database Rules
+# ----------------------------------------------------------------------------
+
+# Keep model classes so Firebase can serialize/deserialize them via reflection
+-keep class com.fredcodecrafts.moodlens.database.entities.** { *; }
+
+# Keep generic signature info (crucial for List<T> or complex types)
+-keepattributes Signature
+
+# Keep Realm/Room/Firebase required members just in case
+-keepclassmembers class com.fredcodecrafts.moodlens.database.entities.** {
+    <fields>;
+}

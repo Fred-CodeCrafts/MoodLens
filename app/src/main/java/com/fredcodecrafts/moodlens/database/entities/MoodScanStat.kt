@@ -5,10 +5,10 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "mood_scan_stats")
 data class MoodScanStat(
-    @PrimaryKey val statId: String,
-    val userId: String,
-    val date: Long,
-    val dailyScans: Int,
-    val weekStreak: Int,
-    val canAccessInsights: Boolean
+    @PrimaryKey val statId: String = "",
+    val userId: String = "",
+    val date: Long = 0L,
+    val dailyScans: Int = 0,
+    val weekStreak: Int = 0,
+    val canAccessInsights: Boolean = false
 )

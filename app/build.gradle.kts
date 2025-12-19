@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     kotlin("kapt") // Add this line for Room annotation processing
     kotlin("plugin.serialization") version "1.9.22"
+    alias(libs.plugins.google.gms.google.services)
 
 }
 
@@ -49,16 +50,11 @@ android {
 
 dependencies {
 
-// Supabase Auth + PostgREST
-    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    // Firebase
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.database)
 
-// Ktor client engine for Android
-    implementation("io.ktor:ktor-client-core:2.3.7")
-    implementation("io.ktor:ktor-client-android:2.3.7")
-    implementation("io.ktor:ktor-client-okhttp:2.3.7")
-    implementation("io.ktor:ktor-client-content-negotiation:2.3.7")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.7")
-    implementation("io.ktor:ktor-client-logging:2.3.7")
 
     // FIX: Add these lines to resolve the credentials error
     val credentialsVersion = "1.3.0-alpha02" // A recent, working version

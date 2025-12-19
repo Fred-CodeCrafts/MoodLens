@@ -10,22 +10,12 @@ import com.fredcodecrafts.moodlens.database.entities.JournalEntry
 import com.fredcodecrafts.moodlens.database.entities.MoodScanStat
 import com.fredcodecrafts.moodlens.database.entities.Note
 import com.fredcodecrafts.moodlens.utils.SessionManager
-import com.fredcodecrafts.moodlens.utils.SupabaseConfig
-import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.contentType
-import io.ktor.serialization.kotlinx.json.json
+
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
+
 
 class JournalRepository(
     private val journalDao: JournalDao,
@@ -33,15 +23,15 @@ class JournalRepository(
     private val messagesDao: MessagesDao,
     private val moodStatsDao: MoodScanStatDao
 ) {
-    private val client = HttpClient(OkHttp) {
-        install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                isLenient = true
-                encodeDefaults = true
-            })
-        }
-    }
+//    private val client = HttpClient(OkHttp) {
+//        install(ContentNegotiation) {
+//            json(Json {
+//                ignoreUnknownKeys = true
+//                isLenient = true
+//                encodeDefaults = true
+//            })
+//        }
+//    }
 
     // ------------------- JOURNAL -------------------
     suspend fun insertEntry(entry: JournalEntry) {
@@ -84,67 +74,60 @@ class JournalRepository(
 
     // -------------------- SUPABASE SYNC (JOURNAL ONLY) ---------------------
 
-    private suspend fun upsertJournal(entry: JournalEntry) {
-        val token = SessionManager.accessToken ?: return
-        try {
-            val response = client.post("${SupabaseConfig.SUPABASE_URL}/rest/v1/${SupabaseConfig.SCHEMA}.journal_entries") {
-                header("Authorization", "Bearer $token")
-                header("apikey", SupabaseConfig.ANON_KEY)
-                header("Prefer", "resolution=merge-duplicates")
-                // Schema headers
-                header("Accept-Profile", SupabaseConfig.SCHEMA)
-                header("Content-Profile", SupabaseConfig.SCHEMA)
-                contentType(ContentType.Application.Json)
-                setBody(
-                    RemoteJournalEntry(
-                        entry_id = entry.entryId,
-                        user_id = entry.userId,
-                        mood = entry.mood,
-                        timestamp = entry.timestamp,
-                        location_name = entry.locationName,
-                        latitude = entry.latitude,
-                        longitude = entry.longitude,
-                        ai_reflection = entry.aiReflection
-                    )
-                )
-            }
-            if (response.status.value !in 200..299) {
-                Log.e("JournalRepository", "Failed to sync journal: ${response.bodyAsText()}")
-            } else {
-                Log.d("JournalRepository", "Journal synced: ${entry.entryId}")
-            }
-        } catch (e: Exception) {
-            Log.e("JournalRepository", "Error syncing journal", e)
+    // -------------------- FIREBASE REALTIME DB SYNC ---------------------
+
+    private val firebaseDb = com.google.firebase.database.FirebaseDatabase.getInstance()
+    private val journalRef = firebaseDb.getReference("journals")
+
+    private fun upsertJournal(entry: JournalEntry) {
+        val userId = SessionManager.currentUserId
+        if (userId == null) {
+            Log.e("JournalRepository", "SKIPPING SYNC: User ID is null!")
+            return
         }
+        // Path: journals/{userId}/{entryId}
+        journalRef.child(userId).child(entry.entryId).setValue(entry)
+            .addOnSuccessListener {
+                Log.d("JournalRepository", "Journal synced to Firebase: ${entry.entryId}")
+            }
+            .addOnFailureListener { e ->
+                Log.e("JournalRepository", "Failed to sync journal to Firebase", e)
+            }
     }
 
     suspend fun fetchAndSyncJournals() {
-        val token = SessionManager.accessToken ?: return
-        try {
-            val response = client.get("${SupabaseConfig.SUPABASE_URL}/rest/v1/${SupabaseConfig.SCHEMA}.journal_entries?select=*") {
-                header("Authorization", "Bearer $token")
-                header("apikey", SupabaseConfig.ANON_KEY)
-                header("Accept-Profile", SupabaseConfig.SCHEMA)
-            }
-            val remoteList: List<RemoteJournalEntry> = response.body()
-            val entries = remoteList.map {
-                JournalEntry(
-                    entryId = it.entry_id,
-                    userId = it.user_id,
-                    mood = it.mood,
-                    timestamp = it.timestamp,
-                    locationName = it.location_name,
-                    latitude = it.latitude,
-                    longitude = it.longitude,
-                    aiReflection = it.ai_reflection
-                )
-            }
-            if (entries.isNotEmpty()) {
-                journalDao.insertAll(entries)
-            }
-        } catch (e: Exception) {
-            Log.e("JournalRepository", "Error fetching journals", e)
-        }
+         // This is a one-time fetch. For Realtime, a ValueEventListener is better.
+         // But for compatibility with existing architecture:
+         val userId = SessionManager.currentUserId ?: return
+         
+         journalRef.child(userId).get().addOnSuccessListener { snapshot ->
+             if (snapshot.exists()) {
+                 val entries = mutableListOf<JournalEntry>()
+                 for (child in snapshot.children) {
+                     // Requires JournalEntry to have a no-arg constructor or be compatible.
+                     // Safe way: Manual mapping or simpler mapping.
+                     // Trying automatic mapping first.
+                     try {
+                         val entry = child.getValue(JournalEntry::class.java)
+                         if (entry != null) {
+                             entries.add(entry)
+                         }
+                     } catch (e: Exception) {
+                         Log.e("JournalRepository", "Error parsing journal entry: ${e.message}")
+                     }
+                 }
+                 
+                 if (entries.isNotEmpty()) {
+                     // Run DB op in coroutine
+                     kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                         journalDao.insertAll(entries)
+                         Log.d("JournalRepository", "Synced ${entries.size} journals from Firebase")
+                     }
+                 }
+             }
+         }.addOnFailureListener { e ->
+             Log.e("JournalRepository", "Failed to fetch journals from Firebase", e)
+         }
     }
 
     suspend fun pushAllJournals() {
