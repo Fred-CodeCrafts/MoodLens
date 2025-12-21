@@ -54,7 +54,13 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.database)
-
+// Ktor client engine for Android
+    implementation("io.ktor:ktor-client-core:2.3.7")
+    implementation("io.ktor:ktor-client-android:2.3.7")
+    implementation("io.ktor:ktor-client-okhttp:2.3.7")
+    implementation("io.ktor:ktor-client-content-negotiation:2.3.7")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.7")
+    implementation("io.ktor:ktor-client-logging:2.3.7")
 
     // FIX: Add these lines to resolve the credentials error
     val credentialsVersion = "1.3.0-alpha02" // A recent, working version
@@ -115,6 +121,10 @@ dependencies {
     implementation ("androidx.room:room-runtime:2.8.1")
     implementation ("androidx.room:room-ktx:2.8.1")
     kapt ("androidx.room:room-compiler:2.8.1")
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+
+    // Maps Clustering Utility
+    implementation("com.google.maps.android:android-maps-utils:3.8.2")
 
     implementation("com.google.android.gms:play-services-maps:18.2.0")
 
@@ -125,6 +135,12 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.1.0")
 
 
+    // Location Services
+    implementation("com.google.android.gms:play-services-location:21.1.0")
+
+
+    implementation("androidx.navigation:navigation-compose:2.9.5")
+    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.9.5")
     implementation("androidx.compose.material:material-icons-extended")
     testImplementation(libs.junit)

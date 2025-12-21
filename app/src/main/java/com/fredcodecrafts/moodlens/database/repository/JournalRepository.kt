@@ -32,7 +32,6 @@ class JournalRepository(
 //            })
 //        }
 //    }
-
     // ------------------- JOURNAL -------------------
     suspend fun insertEntry(entry: JournalEntry) {
         Log.d("JournalRepository", "Inserting local journal: ${entry.entryId}")
@@ -135,6 +134,7 @@ class JournalRepository(
         val allEntries = journalDao.getEntriesForUser(userId)
         allEntries.forEach { upsertJournal(it) }
     }
+
 
 
 

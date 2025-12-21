@@ -13,12 +13,7 @@ val DarkPurple = Color(0xFF5A35A2)    // Supporting purple shade
 val LightPurple = Color(0xFFD9C8FA)
 val TextPrimary = Color(0xFF1C1C28)
 val TextSecondary = Color(0xFF6F6F80)
-val GradientAccent = Brush.linearGradient(
-    colors = listOf(
-        Color(0xFF00BCD4), // Cyan
-        Color(0xFF009688)  // Teal
-    )
-)
+
 // Complementary Colors (from your Tailwind HSLs)
 val SecondaryBlue = Color(0xFFB6E0FE)     // hsl(218, 100%, 88%)
 val AccentCoral = Color(0xFFFCA38A)       // hsl(14, 100%, 82%)
@@ -56,6 +51,13 @@ val GradientCalm = Brush.linearGradient(
     ),
     start = Offset(0f, 0f),
     end = Offset(1f, 1f)
+)
+
+val GradientAccent = Brush.linearGradient(
+    colors = listOf(
+        Color(0xFF00BCD4), // Cyan
+        Color(0xFF009688)  // Teal
+    )
 )
 
 val GradientWarm = Brush.linearGradient(

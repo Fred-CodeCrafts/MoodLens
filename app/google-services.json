@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "615186428110",
+    "firebase_url": "https://moodlens-9e440-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "moodlens-9e440",
+    "storage_bucket": "moodlens-9e440.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:615186428110:android:860b2acbd67bed1b68209f",
+        "android_client_info": {
+          "package_name": "com.fredcodecrafts.moodlens"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "615186428110-0k72rlpje93aeoaddkcr8ql7lfju5onm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.fredcodecrafts.moodlens",
+            "certificate_hash": "3e54c9edbd6c18061bf864355bad93e0bdf2836c"
+          }
+        },
+        {
+          "client_id": "615186428110-1jkboccas3q479rdkavgapbs9tntbg6l.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDo2jYDWqeNjUYBkhnpoJOTRqxriP8Doe8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "615186428110-1jkboccas3q479rdkavgapbs9tntbg6l.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
