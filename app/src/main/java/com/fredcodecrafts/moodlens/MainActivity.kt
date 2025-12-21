@@ -1,8 +1,11 @@
 package com.fredcodecrafts.moodlens
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.lifecycle.lifecycleScope
@@ -21,7 +24,30 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.fredcodecrafts.moodlens.utils.SessionManager
+import androidx.core.content.ContextCompat
+
 class MainActivity : ComponentActivity() {
+
+    // Location permission launcher
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        when {
+            permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true -> {
+                // Fine location permission granted - best accuracy
+                // You can notify user or update UI here if needed
+            }
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true -> {
+                // Coarse location permission granted - approximate location
+                // Still good enough for mood map functionality
+            }
+            else -> {
+                // No location access granted
+                // Mood map will still work but won't capture new locations
+                // Existing location data will still be displayed
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,6 +80,9 @@ class MainActivity : ComponentActivity() {
             )
         )[com.fredcodecrafts.moodlens.database.viewmodel.MainViewModel::class.java]
 
+
+        // Request location permissions if not already granted
+        requestLocationPermissionsIfNeeded()
 
         // Determine start destination here
         val startDestination = if (session.isLoggedIn()) {
@@ -97,5 +126,46 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * Checks if location permissions are granted and requests them if needed.
+     * This is necessary for the Mood Map feature to capture location data.
+     */
+    private fun requestLocationPermissionsIfNeeded() {
+        val fineLocationGranted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val coarseLocationGranted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        // Only request if neither permission is granted
+        if (!fineLocationGranted && !coarseLocationGranted) {
+            requestPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    /**
+     * Helper function to check if location permissions are granted.
+     * You can use this in other parts of your app to check permission status.
+     */
+    fun hasLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
     }
 }
