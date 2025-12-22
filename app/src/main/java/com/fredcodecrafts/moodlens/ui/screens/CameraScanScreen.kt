@@ -456,7 +456,6 @@ fun ScanActionButton(
     showCameraPreview: Boolean,
     onStartScan: () -> Unit,
     onNewScan: () -> Unit,
-    onSimulate: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -483,16 +482,6 @@ fun ScanActionButton(
                     color = Color.White,
                     style = MaterialTheme.typography.titleMedium
                 )
-            }
-        } else {
-            // Scanning state
-            // Debug button to force success if camera/ML fails
-            Button(
-                onClick = onSimulate,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)
-            ) {
-                 Text("Simulate Result (Debug)")
             }
         }
     }
@@ -742,8 +731,7 @@ fun CameraScanScreen(
                 ScanActionButton(
                     showCameraPreview = !isScanning,
                     onStartScan = { takePhotoAndAnalyze() }, // <-- Call takePhotoAndAnalyze
-                    onNewScan = { viewModel.resetScan() },
-                    onSimulate = { viewModel.simulateScanResult() }
+                    onNewScan = { viewModel.resetScan() }
                 )
             }
         } else {

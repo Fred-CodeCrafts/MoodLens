@@ -166,20 +166,7 @@ class CameraScanViewModel(
         _isScanning.value = false
     }
 
-    fun simulateScanResult() {
-        viewModelScope.launch {
-            _isScanning.value = true
-            _scanProgress.value = 0.5f
-            kotlinx.coroutines.delay(1000)
-            
-            val emotion = "happy" // Force happy for testing
-            _detectedEmotion.value = emotion
-            _isScanning.value = false
-            _scanProgress.value = 1f
-            
-            saveScanResult(emotion, null, null, null)
-        }
-    }
+
 
     override fun onCleared() {
         super.onCleared()

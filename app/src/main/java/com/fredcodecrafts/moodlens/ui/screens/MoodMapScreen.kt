@@ -34,6 +34,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.window.Dialog
 import com.fredcodecrafts.moodlens.database.repository.MoodMapRepository
 import createMoodBubble
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.unit.sp
+import android.Manifest // <--- Added
+import android.content.pm.PackageManager // <--- Added
+import androidx.activity.compose.rememberLauncherForActivityResult // <--- Added
+import androidx.activity.result.contract.ActivityResultContracts // <--- Added
+import androidx.core.content.ContextCompat // <--- Added
+import com.google.android.gms.location.LocationServices // <--- Added
 
 data class MoodLocation(
     val id: Long,
@@ -55,17 +63,17 @@ data class MoodCluster(
 @Composable
 fun MoodMapScreen(
     navController: NavHostController,
-    database: AppDatabase
+    database: AppDatabase,
+    userId: String
 ) {
     val context = LocalContext.current
-    val userId = "default_user"
 
     val repository = remember {
         MoodMapRepository(
             journalDao = database.journalDao()
         )
     }
-    val factory = remember { MoodMapViewModelFactory(repository, userId) }
+    val factory = remember(userId) { MoodMapViewModelFactory(repository, userId) }
     val viewModel: MoodMapViewModel = viewModel(factory = factory)
 
     val moodLocations by viewModel.moodLocations.collectAsState()
@@ -78,6 +86,38 @@ fun MoodMapScreen(
     val mapView = remember { MapView(context) }
     var googleMap by remember { mutableStateOf<GoogleMap?>(null) }
 
+    // --- Location Permission & Client ---
+    val fusedLocationClient = remember {
+        LocationServices.getFusedLocationProviderClient(context)
+    }
+
+    var hasLocationPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        hasLocationPermission = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+    }
+
+    LaunchedEffect(Unit) {
+        if (!hasLocationPermission) {
+            permissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
     DisposableEffect(Unit) {
         mapView.onCreate(Bundle())
         mapView.onResume()
@@ -87,10 +127,34 @@ fun MoodMapScreen(
         }
     }
 
+    // Move camera to user location once permission granted
+    LaunchedEffect(googleMap, hasLocationPermission) {
+        googleMap?.let { map ->
+            if (hasLocationPermission) {
+                try {
+                    map.isMyLocationEnabled = true
+                    map.uiSettings.isMyLocationButtonEnabled = true
+
+                    fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                        if (location != null) {
+                            val userLat = location.latitude
+                            val userLng = location.longitude
+                            val userPos = LatLng(userLat, userLng)
+                            map.moveCamera(CameraUpdateFactory.newLatLngZoom(userPos, 15f))
+                        }
+                    }
+                } catch (e: SecurityException) {
+                    // Handle exception
+                }
+            }
+        }
+    }
+
     LaunchedEffect(clusters, googleMap) {
         googleMap?.let { map ->
             map.clear()
-
+            
+            // ... (Your existing cluster rendering logic)
             val filteredClusters = if (selectedMoodFilter != null) {
                 clusters.filter { it.dominantMood.equals(selectedMoodFilter, ignoreCase = true) }
             } else {
@@ -98,10 +162,7 @@ fun MoodMapScreen(
             }
 
             filteredClusters.forEach { cluster ->
-                // 1. Get the color hue you were already using
                 val hueColor = getMoodMarkerColor(cluster.dominantMood)
-
-                // 2. Generate the custom bubble bitmap
                 val customIcon = createMoodBubble(
                     context = context,
                     mood = cluster.dominantMood,
@@ -112,8 +173,8 @@ fun MoodMapScreen(
                     .position(LatLng(cluster.latitude, cluster.longitude))
                     .title(cluster.dominantMood)
                     .snippet("${cluster.moods.size} entries")
-                    .icon(customIcon) // <--- Apply the custom icon here
-                    .anchor(0.5f, 0.5f) // Center the bubble on the coordinate
+                    .icon(customIcon)
+                    .anchor(0.5f, 0.5f)
 
                 map.addMarker(markerOptions)?.tag = cluster
             }
@@ -183,6 +244,13 @@ fun MoodMapScreen(
                         googleMap = map
                         map.uiSettings.isZoomControlsEnabled = true
                         map.uiSettings.isCompassEnabled = true
+                        
+                        // RAISE ZOOM CONTROLS
+                        // left, top, right, bottom padding
+                        // Raising bottom approx 100dp to clear the stats card
+                         val density = context.resources.displayMetrics.density
+                         val bottomPadding = (130 * density).toInt() 
+                         map.setPadding(0, 0, 0, bottomPadding)
 
                         map.setOnMarkerClickListener { marker ->
                             selectedCluster = marker.tag as? MoodCluster
@@ -224,23 +292,56 @@ fun MoodMapScreen(
                     Surface(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
-                            .padding(16.dp)
+                            .padding(bottom = 44.dp, start = 52.dp, end = 52.dp)
                             .fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(24.dp),
                         color = Color.White,
-                        shadowElevation = 8.dp
+                        shadowElevation = 6.dp
                     ) {
                         Row(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly
+                            // REMOVED horizontal padding here so the weights use the full width
+                            modifier = Modifier.padding(vertical = 10.dp),
+                            // REMOVED Arrangement.SpaceBetween
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            MapStatItem("Total", moodLocations.size.toString())
-                            MapStatItem("Locations", clusters.size.toString())
-                            MapStatItem(
-                                "Most Common",
-                                clusters.groupBy { it.dominantMood }
-                                    .maxByOrNull { it.value.size }?.key ?: "N/A"
+
+                            // --- ITEM 1 ---
+                            Box(
+                                modifier = Modifier.weight(1f), // Force 33% width
+                                contentAlignment = Alignment.Center
+                            ) {
+                                MapStatItem("Total", moodLocations.size.toString())
+                            }
+
+                            VerticalDivider(
+                                modifier = Modifier.height(24.dp),
+                                color = Color.LightGray
                             )
+
+                            // --- ITEM 2 ---
+                            Box(
+                                modifier = Modifier.weight(1f), // Force 33% width
+                                contentAlignment = Alignment.Center
+                            ) {
+                                MapStatItem("Locations", clusters.size.toString())
+                            }
+
+                            VerticalDivider(
+                                modifier = Modifier.height(24.dp),
+                                color = Color.LightGray
+                            )
+
+                            // --- ITEM 3 ---
+                            Box(
+                                modifier = Modifier.weight(1f), // Force 33% width
+                                contentAlignment = Alignment.Center
+                            ) {
+                                MapStatItem(
+                                    "Common",
+                                    clusters.groupBy { it.dominantMood }
+                                        .maxByOrNull { it.value.size }?.key ?: "-"
+                                )
+                            }
                         }
                     }
                 }
@@ -407,17 +508,30 @@ fun MapLegendItem(label: String, emoji: String, color: Color) {
 // Renamed to avoid conflict with InsightsScreen
 @Composable
 fun MapStatItem(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        // valid way to tighten items if you previously had `spacedBy`
+        verticalArrangement = Arrangement.spacedBy((-6).dp) // Optional: Negative spacing to pull them very close
+    ) {
         Text(
             text = value,
-            style = MaterialTheme.typography.titleLarge.copy(
-                fontWeight = FontWeight.Bold
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.Bold,
+                // 1. Remove default font padding
+                platformStyle = PlatformTextStyle(includeFontPadding = false),
+                // 2. Tighter line height
+                lineHeight = 16.sp
             ),
             color = MainPurple
         )
         Text(
             text = label,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.labelSmall.copy(
+                // 1. Remove default font padding
+                platformStyle = PlatformTextStyle(includeFontPadding = false),
+                // 2. Tighter line height
+                lineHeight = 12.sp
+            ),
             color = TextSecondary
         )
     }

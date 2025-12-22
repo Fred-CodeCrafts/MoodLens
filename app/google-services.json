@@ -23,6 +23,14 @@
           }
         },
         {
+          "client_id": "615186428110-1lh4rr4h2jqaam08pp60nasgeigm9tag.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.fredcodecrafts.moodlens",
+            "certificate_hash": "fe0609932834e0fa375e4cb809cc124d64e4d412"
+          }
+        },
+        {
           "client_id": "615186428110-1jkboccas3q479rdkavgapbs9tntbg6l.apps.googleusercontent.com",
           "client_type": 3
         }

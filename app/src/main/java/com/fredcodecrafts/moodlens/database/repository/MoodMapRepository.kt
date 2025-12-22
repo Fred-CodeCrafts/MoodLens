@@ -1,5 +1,5 @@
 package com.fredcodecrafts.moodlens.database.repository
-import com.fredcodecrafts.moodlens.database.DummyData
+
 
 
 import com.fredcodecrafts.moodlens.database.dao.JournalDao
@@ -15,21 +15,26 @@ class MoodMapRepository(
      * Returns a Flow so the UI automatically updates when data changes.
      */
     fun getMoodLocationsForUser(userId: String): Flow<List<MoodLocation>> = flow {
-        // --- USE DUMMY DATA INSTEAD OF DATABASE ---
-        val dummyLocations = DummyData.journalEntries.mapIndexed { index, entry ->
-            MoodLocation(
-                id = index.toLong(),
-                mood = entry.mood,
-                latitude = entry.latitude ?: 0.0,
-                longitude = entry.longitude ?: 0.0,
-                timestamp = entry.timestamp,
-                note = DummyData.notes
-                    .firstOrNull { it.entryId == entry.entryId }
-                    ?.content
-            )
-        }
+        // Use the optimized DAO method that filters for non-null coordinates
+        val entries = journalDao.getEntriesWithLocation(userId)
 
-        emit(dummyLocations)
+        val moodLocations = entries
+            .filter { entry ->
+                // Extra validation: ensure coordinates are valid (not 0.0, 0.0)
+                entry.latitude != 0.0 && entry.longitude != 0.0
+            }
+            .map { entry ->
+                MoodLocation(
+                    id = entry.entryId.hashCode().toLong(), // Convert String ID to Long
+                    mood = entry.mood,
+                    latitude = entry.latitude!!,  // Safe because getEntriesWithLocation filters nulls
+                    longitude = entry.longitude!!, // Safe because getEntriesWithLocation filters nulls
+                    timestamp = entry.timestamp,
+                    note = entry.aiReflection // Use aiReflection as the note
+                )
+            }
+
+        emit(moodLocations)
     }
 
     /** fun getMoodLocationsForUser(userId: String): Flow<List<MoodLocation>> = flow {
