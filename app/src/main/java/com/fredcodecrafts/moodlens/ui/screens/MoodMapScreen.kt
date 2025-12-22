@@ -150,18 +150,17 @@ fun MoodMapScreen(
         }
     }
 
+    // React to filter changes by asking ViewModel to re-cluster
+    LaunchedEffect(selectedMoodFilter) {
+        viewModel.filterByMood(selectedMoodFilter)
+    }
+
     LaunchedEffect(clusters, googleMap) {
         googleMap?.let { map ->
             map.clear()
             
-            // ... (Your existing cluster rendering logic)
-            val filteredClusters = if (selectedMoodFilter != null) {
-                clusters.filter { it.dominantMood.equals(selectedMoodFilter, ignoreCase = true) }
-            } else {
-                clusters
-            }
-
-            filteredClusters.forEach { cluster ->
+            // Use clusters directly from ViewModel (already filtered)
+            clusters.forEach { cluster ->
                 val hueColor = getMoodMarkerColor(cluster.dominantMood)
                 val customIcon = createMoodBubble(
                     context = context,
